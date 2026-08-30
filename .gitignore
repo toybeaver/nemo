@@ -1,2 +1,4 @@
 *.o
 symp
+*.out
+out.s

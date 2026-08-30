@@ -4,11 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 // ----------------------------
 //            HASHMAP
 // ----------------------------
 static size_t hm_hash(struct hmap *h, char* key);
 static void   hm_rehash(struct hmap* h);
+
 
 // I have no idea what the optimal stuff is, I'll just use 69
 #define HM_INIT_CAP 69
@@ -19,6 +21,7 @@ void hm_init(struct hmap *h)
   h->cap = HM_INIT_CAP;
   h->entries = calloc(HM_INIT_CAP, sizeof(struct hmap_entry)); 
 }
+
 
 // this free func sucks but I don't really care tbh
 void hm_free(struct hmap *h)
@@ -32,6 +35,7 @@ void hm_free(struct hmap *h)
   free(h->entries);
   free(h);
 }
+
 
 #define HM_HI_LOAD_FACTOR 0.69
 void hm_put(struct hmap *h, char* key, void* value)
@@ -50,6 +54,7 @@ void hm_put(struct hmap *h, char* key, void* value)
   h->len += 1;
 }
 
+
 void* hm_get(struct hmap *h, char* key)
 {
   size_t idx = hm_hash(h, key);
@@ -64,6 +69,7 @@ void* hm_get(struct hmap *h, char* key)
   return entry->data;
 }
 
+
 // FNV-1a - https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function#FNV-1a_hash
 #define FNV_OFFSET_BASIS 0xcbf29ce484222325
 #define FNV_PRIME        0x100000001b3
@@ -75,6 +81,7 @@ static size_t hm_hash(struct hmap *h, char* key)
   }
   return (size_t)(hash % h->cap);
 }
+
 
 static void hm_rehash(struct hmap* h)
 {
@@ -93,4 +100,3 @@ static void hm_rehash(struct hmap* h)
   *h = *h1;
   free(h1);
 }
-
