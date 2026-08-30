@@ -1,12 +1,10 @@
 PROJ   = symp
 CC     = gcc
-CFLAGS = -pedantic -Wall -Werror
+CFLAGS = -pedantic -Werror
 
 .PHONY: all, clean
 all: $(PROJ)
-	./symp #> out.s
-	# gcc -c out.s
-	# ld out.o
+	./symp > out.s && gcc -c out.s && ld out.o
 
 clean:
 	rm -Rf *.o
@@ -14,5 +12,5 @@ clean:
 	rm -Rf $(PROJ)
 	rm -Rf out.s
 
-$(PROJ): main.o ds.o codegen.o lexer.o utils.o
+$(PROJ): main.o ds.o codegen.o lexer.o utils.o ast.o symp.o
 	gcc $(CFLAGS) -o $@ $^

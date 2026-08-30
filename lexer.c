@@ -3,13 +3,14 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 
 
 static struct lex_token next_token(const char* src, int initial_pos);
 
 static bool try_parse_ident(const char* src, size_t cur, struct lex_token *tok);
 
-static void dbg_token(const char* src, struct lex_token t);
+// static void dbg_token(const char* src, struct lex_token t);
 
 
 #define MAX_TOKENS /* for now */ 1024
@@ -20,11 +21,11 @@ struct lex_token* lex_scan(const char* src)
 
   t[i] = next_token(src, 0);
   while (t[i].type != TOKEN_ERR && t[i].type != TOKEN_EOF && i < MAX_TOKENS) {
-    dbg_token(src, t[i]);
+    // dbg_token(src, t[i]);
     i += 1;
     t[i] = next_token(src, t[i-1].len + t[i-1].pos);
   }
-  dbg_token(src, t[i]);
+  // dbg_token(src, t[i]);
 
   if (t[i].type == TOKEN_ERR) {
     fprintf(stderr, "error: Unexpected token found: '%c' at pos %zu\n", src[t[i].pos], t[i].pos);
@@ -35,10 +36,17 @@ struct lex_token* lex_scan(const char* src)
     fprintf(stderr, "error: Expected EOF, but found: '%c' at pos %zu\n", src[t[i].pos], t[i].pos);
     exit(1);
   }
+ 
+  return t;
+}
 
-  printf("IS EOF: %s\n", t[i].type == TOKEN_EOF ? "yes": "no");
-  
-  return NULL;
+
+char* get_tokens_content(const char* src, struct lex_token* tok)
+{
+  char* st = malloc(tok->len+1);
+  strncpy(st, &src[tok->pos], tok->len);
+  st[tok->len] = '\0';
+  return st;
 }
 
 
@@ -85,7 +93,7 @@ static bool try_parse_ident(const char* src, size_t cur, struct lex_token *tok)
 }
 
 
-static void dbg_token(const char* src, struct lex_token t)
-{
-  printf("Token: %c - %zu - %d - %d\n", src[t.pos], t.pos, t.len, t.type);
-}
+// static void dbg_token(const char* src, struct lex_token t)
+// {
+//   printf("Token: %c - %zu - %d - %d\n", src[t.pos], t.pos, t.len, t.type);
+// }

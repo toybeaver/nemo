@@ -8,7 +8,7 @@
 // ----------------------------
 //            HASHMAP
 // ----------------------------
-static size_t hm_hash(struct hmap *h, char* key);
+static size_t hm_hash(struct hmap *h, const char* key);
 static void   hm_rehash(struct hmap* h);
 
 
@@ -37,6 +37,36 @@ void hm_free(struct hmap *h)
 }
 
 
+void* hm_get(struct hmap *h, const char* key)
+{
+  size_t idx = hm_hash(h, key);
+  struct hmap_entry *entry = &h->entries[idx];
+  while (entry->key && strcmp(entry->key, key) != 0) {
+    idx = (idx + 1) % h->cap;
+    entry = &h->entries[idx];   
+  }
+
+  if (!entry->key) return NULL;
+
+  return entry->data;
+}
+
+
+struct hmap_entry* hm_get_ref(struct hmap *h, const char* key)
+{
+  size_t idx = hm_hash(h, key);
+  struct hmap_entry *entry = &h->entries[idx];
+  while (entry->key && strcmp(entry->key, key) != 0) {
+    idx = (idx + 1) % h->cap;
+    entry = &h->entries[idx];   
+  }
+
+  if (!entry->key) return NULL;
+
+  return entry;
+}
+
+
 #define HM_HI_LOAD_FACTOR 0.69
 void hm_put(struct hmap *h, char* key, void* value)
 {
@@ -55,28 +85,13 @@ void hm_put(struct hmap *h, char* key, void* value)
 }
 
 
-void* hm_get(struct hmap *h, char* key)
-{
-  size_t idx = hm_hash(h, key);
-  struct hmap_entry *entry = &h->entries[idx];
-  while (entry->key && strcmp(entry->key, key) != 0) {
-    idx = (idx + 1) % h->cap;
-    entry = &h->entries[idx];   
-  }
-
-  if (!entry->key)  return NULL;
-
-  return entry->data;
-}
-
-
 // FNV-1a - https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function#FNV-1a_hash
 #define FNV_OFFSET_BASIS 0xcbf29ce484222325
 #define FNV_PRIME        0x100000001b3
-static size_t hm_hash(struct hmap *h, char* key)
+static size_t hm_hash(struct hmap *h, const char* key)
 {
   long hash = FNV_OFFSET_BASIS;
-  for (char* c = key; *c != '\0'; c++) {
+  for (const char* c = key; *c != '\0'; c++) {
     hash = (hash * FNV_PRIME) ^ *c;
   }
   return (size_t)(hash % h->cap);
