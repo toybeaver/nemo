@@ -12,5 +12,5 @@ clean:
 	rm -Rf $(PROJ)
 	rm -Rf out.s
 
-$(PROJ): main.o ds.o codegen.o lexer.o utils.o ast.o symp.o
+$(PROJ): main.o ds.o codegen.o lexer.o utils.o ast.o symp.o symbols.o
 	gcc $(CFLAGS) -o $@ $^

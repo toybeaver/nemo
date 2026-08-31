@@ -10,7 +10,7 @@ static struct lex_token next_token(const char* src, int initial_pos);
 
 static bool try_parse_ident(const char* src, size_t cur, struct lex_token *tok);
 
-// static void dbg_token(const char* src, struct lex_token t);
+static void dbg_token(const char* src, struct lex_token t);
 
 
 #define MAX_TOKENS /* for now */ 1024
@@ -68,10 +68,12 @@ static struct lex_token next_token(const char* src, int initial_pos)
   tok.pos = cur;
 
   switch(src[cur]) {
-    case '(': tok.type = TOKEN_LPAREN; return tok; 
-    case ')': tok.type = TOKEN_RPAREN; return tok; 
+    case '(': tok.type = TOKEN_LPAREN;   return tok; 
+    case ')': tok.type = TOKEN_RPAREN;   return tok; 
     case '{': tok.type = TOKEN_LBRACKET; return tok; 
     case '}': tok.type = TOKEN_RBRACKET; return tok; 
+    case ':': tok.type = TOKEN_COLON;    return tok;
+    case ';': tok.type = TOKEN_SEMICOL;  return tok;
   }
 
   tok.type = TOKEN_ERR;
@@ -93,7 +95,7 @@ static bool try_parse_ident(const char* src, size_t cur, struct lex_token *tok)
 }
 
 
-// static void dbg_token(const char* src, struct lex_token t)
-// {
-//   printf("Token: %c - %zu - %d - %d\n", src[t.pos], t.pos, t.len, t.type);
-// }
+static void dbg_token(const char* src, struct lex_token t)
+{
+  printf("Token: %c - %zu - %d - %d\n", src[t.pos], t.pos, t.len, t.type);
+}

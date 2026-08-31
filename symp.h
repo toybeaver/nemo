@@ -12,6 +12,8 @@ void init_globals();
 void deinit_globals();
 bool is_keyword(const char* w);
 
+struct data_type_definition* get_datatype_definition(const char* dt); 
+
 
 // ============================
 //       LEXER
@@ -24,11 +26,13 @@ typedef int TokenType;
 #define TOKEN_RPAREN   3
 #define TOKEN_LBRACKET 4
 #define TOKEN_RBRACKET 5
+#define TOKEN_COLON    6
+#define TOKEN_SEMICOL  8
 
 struct lex_token {
   TokenType type;  
-  size_t pos;
-  int    len;
+  size_t    pos;
+  int       len;
 };
 
 struct lex_token* lex_scan(const char* src);
@@ -40,17 +44,27 @@ char*             get_tokens_content(const char* src, struct lex_token* tok);
 // ============================
 typedef int SymbolType;
 #define SYM_FUNC 0
+#define SYM_VAR 1
+
+struct data_type_definition {
+  size_t size;
+  size_t alignment;
+};
 
 struct symbol {
-  char*      name;
-  SymbolType type;
-  bool       is_main_func;
+  char*                       name;
+  SymbolType                  type;
+  bool                        is_main_func;
+  int                         stack_offset;
+  struct data_type_definition *data_type;
 };
 
 struct sym_table {
   struct hmap*      table;
   struct sym_table* parent;
 };
+
+struct sym_table init_sym_table(struct sym_table* parent);
 
  
 // ============================
@@ -59,6 +73,8 @@ struct sym_table {
 typedef int ASTNodeType;
 #define AST_ROOT     0
 #define AST_FUNCTION 1
+#define AST_SCOPE    2
+#define AST_VAR_DECL 3
 
 struct ast_node {
   ASTNodeType        type;

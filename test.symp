@@ -1,3 +1,12 @@
 func main()
-{}
+{
+	var x: int32;
+	var y: int32; 
+}
  
+func test()
+{
+	var x: int32;
+	var y: int32;
+	var z: int32;
+}

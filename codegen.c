@@ -1,4 +1,5 @@
 #include "symp.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -6,6 +7,7 @@
 
 static void cg_start();
 static bool cg_asm_for_func(struct ast_node func);
+static void cg_asm_for_var_decl(struct ast_node func, int *stack_offset);
 
 void gen_asm_to_stdout(struct ast_node ast)
 {
@@ -21,7 +23,8 @@ void gen_asm_to_stdout(struct ast_node ast)
           fprintf(stderr, "error: There could be only one main but two or more found\n");
           exit(1);
         }
-        main_found = is_main;
+
+        if (is_main) main_found = is_main;
         break;
       default: {
         fprintf(stderr, "error: UNREACHABLE\n");
@@ -55,20 +58,47 @@ static void cg_start()
 
 
 static bool cg_asm_for_func(struct ast_node func) {
-  struct symbol* identifier = (void*)func.ref_in_parent->data;
+  struct symbol* sym = func.ref_in_parent->data;
 
-  printf("%s:\n", identifier->name);
+  printf("%s:\n", sym->name);
   printf("\tpush %%rbp\n");
   printf("\tmov  %%rsp, %%rbp\n");
   
-  // TODO: parse body and args here
+  struct ast_node scope = func.children[0];
+  int stack_offset = 0;
+  for (int i = 0; i < scope.children_len; i++) {
+    struct ast_node cur = scope.children[0];
+    switch (cur.type) {
+      case AST_VAR_DECL:
+        cg_asm_for_var_decl(cur, &stack_offset);
+        break;
+      default:
+        fprintf(stderr, "error: UNREACHABLE func scope cg\n");
+        exit(1);
+    }
+  }
 
-  printf("\tpop %%rbp\n");
-  if (identifier->is_main_func) {
+  printf("\tpop  %%rbp\n");
+  if (sym->is_main_func) {
     // always return 0 for now
     printf("\txor  %%rax, %%rax\n");
   }
   printf("\tret\n");
-  return identifier->is_main_func;
+  return sym->is_main_func;
 }
 
+
+static void cg_asm_for_var_decl(struct ast_node var, int *stack_offset)
+{
+  struct symbol* sym = var.ref_in_parent->data;
+  assert(sym != NULL);
+
+  struct data_type_definition *dt = sym->data_type;
+  assert(dt != NULL); 
+
+  // TODO: handle alignment
+  *stack_offset -= dt->size;
+  sym->stack_offset = *stack_offset;
+
+  printf("\tadd  $%d, %%rbp\n", *stack_offset);
+}
