@@ -1,4 +1,4 @@
 *.o
-symp
+nemo
 *.out
 out.s
