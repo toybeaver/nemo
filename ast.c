@@ -7,10 +7,13 @@
 
 static bool is_func(const char* src, struct lex_token* cur);
 static bool is_var(const char* src, struct lex_token* cur);
+static bool is_exit(const char* src, struct lex_token* cur);
 
 static void parse_func(const char* src, struct lex_token** cur, struct ast_node* parent);
 static void parse_scope(const char* src, struct lex_token** cur, struct ast_node* parent);
 static void parse_var(const char* src, struct lex_token** cur, struct ast_node* parent);
+static void parse_exit(const char* src, struct lex_token** cur, struct ast_node* parent);
+static void parse_ident(const char* src, struct lex_token** cur, struct ast_node* parent);
 
 #define MAX_NODES /* for now */ 1024
 struct ast_node parse_ast(const char* src, struct lex_token* tokens)
@@ -45,6 +48,12 @@ static bool is_func(const char* src, struct lex_token* cur)
 static bool is_var(const char* src, struct lex_token* cur)
 {
   return cur->type == TOKEN_IDENT && strncmp(&src[cur->pos], "var", cur->len) == 0;
+}
+
+
+static bool is_exit(const char* src, struct lex_token* cur)
+{
+  return cur->type == TOKEN_IDENT && strncmp(&src[cur->pos], "exit", cur->len) == 0;  
 }
 
 
@@ -121,13 +130,14 @@ static void parse_scope(const char* src, struct lex_token** _cur, struct ast_nod
   while(true) {
     bool should_quit = false;
 
-    if (is_var(src, cur)) parse_var(src, &cur, scope); 
+    if      (is_var(src, cur))         parse_var(src, &cur, scope); 
+    else if (is_exit(src, cur))        parse_exit(src, &cur, scope); 
+    else if (cur->type == TOKEN_IDENT) parse_ident(src, &cur, scope);
 
     switch (cur->type) {
       case TOKEN_EOF: 
         fprintf(stderr, "error: Unexpected EOF in func \"%s\" at pos %d\n", func_name, cur->pos);
         exit(1);
-
       case TOKEN_RBRACKET:
         cur += 1;
         should_quit = true;
@@ -202,4 +212,91 @@ static void parse_var(const char* src, struct lex_token** _cur, struct ast_node*
   }
 
   *_cur = cur+1;
+}
+
+
+static void parse_exit(const char* src, struct lex_token** _cur, struct ast_node* parent)
+{
+  struct lex_token* cur = *_cur;
+
+  struct ast_node* exitt = &parent->children[parent->children_len];
+  exitt->type = AST_EXIT;
+  parent->children_len += 1;
+
+  cur += 1;
+    
+  char* lit = get_tokens_content(src, cur);
+  if (cur->type != TOKEN_LITERAL) {
+    fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", lit, cur->pos);
+    exit(1);      
+  }
+  exitt->rhs = atoi(lit);
+
+  cur += 1;
+  if (cur->type != TOKEN_SEMICOL) {
+    char* bad_token = get_tokens_content(src, cur);
+    fprintf(stderr, "error: Expected ';', found \"%s\" at pos %d\n", bad_token, cur->pos);
+    exit(1);
+  }
+
+  *_cur = cur + 1;
+}
+
+
+
+static void parse_ident(const char* src, struct lex_token** _cur, struct ast_node* parent)
+{
+  struct lex_token* cur = *_cur;
+
+  char* sym_name = get_tokens_content(src, cur);
+  if (is_keyword(sym_name)) {
+    fprintf(stderr, "error: Unexpected keyword \"%s\" at pos %d\n", sym_name, cur->pos);
+    exit(1);
+  }
+  
+  struct symbol *sym = hm_get(parent->sym_table.table, sym_name);
+  if (sym == NULL) {
+    fprintf(stderr, "error: Undeclared variable \"%s\"at pos %d\n", sym_name, cur->pos);
+    fprintf(stderr, "tip:   try first declaring it with \"var %s: <type>\"\n", sym_name);
+    exit(1);
+  }
+ 
+  cur += 1;
+  switch (cur->type) {
+    case TOKEN_ASSIGN: {
+        cur += 1;
+        struct ast_node* assign = &parent->children[parent->children_len];
+        assign->type = AST_ASSIGNMENT;
+        assign->lhs = sym;
+        parent->children_len += 1;
+
+        char* lit = get_tokens_content(src, cur);
+        if (cur->type != TOKEN_LITERAL) {
+          fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", lit, cur->pos);
+          exit(1);      
+        }
+        assign->rhs = atoi(lit);
+
+        cur += 1;
+        if (cur->type != TOKEN_SEMICOL) {
+          char* bad_token = get_tokens_content(src, cur);
+          fprintf(stderr, "error: Expected ';', found \"%s\" at pos %d\n", bad_token, cur->pos);
+          exit(1);
+        }
+        cur += 1;
+
+        break;
+    }
+    case TOKEN_EOF: {
+      fprintf(stderr, "error: Unexpected EOF at pos %d\n", cur->pos);
+      exit(1);
+    }
+    default: {
+      char* bad_token = get_tokens_content(src, cur);
+      fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", bad_token, cur->pos);
+      exit(1);      
+    }
+  }
+
+  *_cur = cur;
 }

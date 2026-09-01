@@ -37,6 +37,7 @@ static void init_kws()
   g_keywords = calloc(1, sizeof(struct hmap));
   hm_init(g_keywords);
 
+  hm_put(g_keywords, "exit",  "");
   hm_put(g_keywords, "func",  "");
   hm_put(g_keywords, "var",   "");
   hm_put(g_keywords, "int32", "");

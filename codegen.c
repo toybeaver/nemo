@@ -5,9 +5,13 @@
 #include <stdbool.h>
 
 
+#define EXIT_ADDR "__EXIT__"
+
 static void cg_start();
 static bool cg_asm_for_func(struct ast_node func);
 static void cg_asm_for_var_decl(struct ast_node func, int *stack_offset);
+static void cg_asm_for_assignment(struct ast_node assign);
+static void cg_asm_for_exit(struct ast_node exit);
 
 void gen_asm_to_stdout(struct ast_node ast)
 {
@@ -27,7 +31,7 @@ void gen_asm_to_stdout(struct ast_node ast)
         if (is_main) main_found = is_main;
         break;
       default: {
-        fprintf(stderr, "error: UNREACHABLE\n");
+        fprintf(stderr, "error: UNREACHABLE: UNKNOWN NODE FOR CG\n");
         exit(1);
       }
     }
@@ -50,6 +54,7 @@ static void cg_start()
   printf("\tand  $0xfffffffffffffff0, %%rsp\n");
 
   printf("\tcall main\n");
+  printf(EXIT_ADDR ":\n");
 
   printf("\tmov  %%rax, %%rdi\n");
   printf("\tmov  $60, %%rax\n");
@@ -67,10 +72,16 @@ static bool cg_asm_for_func(struct ast_node func) {
   struct ast_node scope = func.children[0];
   int stack_offset = 0;
   for (int i = 0; i < scope.children_len; i++) {
-    struct ast_node cur = scope.children[0];
+    struct ast_node cur = scope.children[i];
     switch (cur.type) {
       case AST_VAR_DECL:
         cg_asm_for_var_decl(cur, &stack_offset);
+        break;
+      case AST_ASSIGNMENT:
+        cg_asm_for_assignment(cur);
+        break;
+      case AST_EXIT:
+        cg_asm_for_exit(cur);
         break;
       default:
         fprintf(stderr, "error: UNREACHABLE func scope cg\n");
@@ -101,4 +112,21 @@ static void cg_asm_for_var_decl(struct ast_node var, int *stack_offset)
   sym->stack_offset = *stack_offset;
 
   printf("\tadd  $%d, %%rbp\n", *stack_offset);
+  printf("\tmovl $0,  %d(%%rbp)\n", *stack_offset);
+}
+
+
+static void cg_asm_for_assignment(struct ast_node assign)
+{
+  assert(assign.lhs != NULL);
+  int stack_offset = assign.lhs->stack_offset;
+
+  printf("\tmovl $%d, %d(%%rbp)\n", assign.rhs, stack_offset);
+}
+
+
+static void cg_asm_for_exit(struct ast_node exit)
+{
+	printf("\tmov  $%d, %rax\n", exit.rhs);
+	printf("\tjmp  " EXIT_ADDR "\n");
 }

@@ -2,6 +2,11 @@ func main()
 {
 	var x: int32;
 	var y: int32; 
+
+	x = 34;
+	y = 35;
+
+	exit 69;
 }
  
 func test()

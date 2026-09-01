@@ -28,6 +28,8 @@ typedef int TokenType;
 #define TOKEN_RBRACKET 5
 #define TOKEN_COLON    6
 #define TOKEN_SEMICOL  8
+#define TOKEN_ASSIGN    9
+#define TOKEN_LITERAL  10
 
 struct lex_token {
   TokenType type;  
@@ -71,10 +73,13 @@ struct sym_table init_sym_table(struct sym_table* parent);
 //       AST
 // ============================
 typedef int ASTNodeType;
-#define AST_ROOT     0
-#define AST_FUNCTION 1
-#define AST_SCOPE    2
-#define AST_VAR_DECL 3
+#define AST_ROOT       0
+#define AST_FUNCTION   1
+#define AST_SCOPE      2
+#define AST_VAR_DECL   3
+#define AST_ASSIGNMENT 4
+#define AST_LITERAL    5
+#define AST_EXIT       6
 
 struct ast_node {
   ASTNodeType        type;
@@ -82,6 +87,9 @@ struct ast_node {
   size_t             children_len;
   struct sym_table   sym_table;
   struct hmap_entry* ref_in_parent;
+
+  struct symbol* lhs;
+  int rhs;
 };
 
 struct ast_node parse_ast(const char* src, struct lex_token* tokens);

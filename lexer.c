@@ -9,6 +9,7 @@
 static struct lex_token next_token(const char* src, int initial_pos);
 
 static bool try_parse_ident(const char* src, size_t cur, struct lex_token *tok);
+static bool try_parse_literal(const char* src, size_t cur, struct lex_token *tok);
 
 static void dbg_token(const char* src, struct lex_token t);
 
@@ -63,7 +64,8 @@ static struct lex_token next_token(const char* src, int initial_pos)
     return tok;
   }
 
-  if (try_parse_ident(src, cur, &tok)) return tok;  
+  if (try_parse_ident(src, cur, &tok)) return tok;
+  if (try_parse_literal(src, cur, &tok)) return tok;
 
   tok.pos = cur;
 
@@ -74,6 +76,7 @@ static struct lex_token next_token(const char* src, int initial_pos)
     case '}': tok.type = TOKEN_RBRACKET; return tok; 
     case ':': tok.type = TOKEN_COLON;    return tok;
     case ';': tok.type = TOKEN_SEMICOL;  return tok;
+    case '=': tok.type = TOKEN_ASSIGN;   return tok;
   }
 
   tok.type = TOKEN_ERR;
@@ -89,6 +92,19 @@ static bool try_parse_ident(const char* src, size_t cur, struct lex_token *tok)
   size_t init = cur;
   while (isalnum(src[cur]) || src[cur] == '_') cur += 1;
   tok->type = TOKEN_IDENT;
+  tok->pos = init;
+  tok->len = cur - init;
+  return true;
+}
+
+
+static bool try_parse_literal(const char* src, size_t cur, struct lex_token *tok)
+{
+  if (!isdigit(src[cur])) return false;
+  
+  size_t init = cur;
+  while (isdigit(src[cur])) cur += 1;
+  tok->type = TOKEN_LITERAL;
   tok->pos = init;
   tok->len = cur - init;
   return true;
