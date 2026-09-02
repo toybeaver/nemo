@@ -22,12 +22,10 @@ struct lex_token* lex_scan(const char* src)
 
   t[i] = next_token(src, 0);
   while (t[i].type != TOKEN_ERR && t[i].type != TOKEN_EOF && i < MAX_TOKENS) {
-    // dbg_token(src, t[i]);
     i += 1;
     t[i] = next_token(src, t[i-1].len + t[i-1].pos);
   }
-  // dbg_token(src, t[i]);
-
+ 
   if (t[i].type == TOKEN_ERR) {
     fprintf(stderr, "error: Unexpected token found: '%c' at pos %zu\n", src[t[i].pos], t[i].pos);
     exit(1);

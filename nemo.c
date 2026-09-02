@@ -1,11 +1,14 @@
 #include "nemo.h"
 #include <stdlib.h>
 
+
 struct hmap* g_keywords = NULL;
 struct hmap* g_datatypes = NULL;
 
+
 static void init_kws();
 static void init_datatypes();
+
 
 void init_globals()
 {
@@ -49,8 +52,7 @@ static void init_datatypes()
   g_datatypes = calloc(1, sizeof(struct hmap));
   hm_init(g_datatypes);
 
-  struct data_type_definition *def = calloc(1, sizeof(struct data_type_definition));
-
-  def->size = 4; def->alignment = 4;
-  hm_put(g_datatypes, "int32", def);
+  struct data_type_definition *int32 = calloc(1, sizeof(struct data_type_definition));
+  int32->size = 4; int32->alignment = 4;
+  hm_put(g_datatypes, "int32", int32);
 }

@@ -9,13 +9,15 @@ static bool is_func(const char* src, struct lex_token* cur);
 static bool is_var(const char* src, struct lex_token* cur);
 static bool is_exit(const char* src, struct lex_token* cur);
 
+static void consume_single_token(const char* src, struct lex_token **cur, TokenType type, char expected);
+
 static void parse_func(const char* src, struct lex_token** cur, struct ast_node* parent);
 static void parse_scope(const char* src, struct lex_token** cur, struct ast_node* parent);
 static void parse_var(const char* src, struct lex_token** cur, struct ast_node* parent);
 static void parse_exit(const char* src, struct lex_token** cur, struct ast_node* parent);
 static void parse_ident(const char* src, struct lex_token** cur, struct ast_node* parent);
 
-#define MAX_NODES /* for now */ 1024
+#define MAX_NODES /* for now */ 128
 struct ast_node parse_ast(const char* src, struct lex_token* tokens)
 {
   struct ast_node root = {
@@ -57,6 +59,18 @@ static bool is_exit(const char* src, struct lex_token* cur)
 }
 
 
+static void consume_single_token(const char* src, struct lex_token **_cur, TokenType type, char expected)
+{
+  struct lex_token* cur = *_cur;
+  if (cur->type != type) {
+    char* bad_token = get_tokens_content(src, cur);
+    fprintf(stderr, "error: Expected '%c' found \"%s\" at pos %d\n", expected, bad_token, cur->pos);
+    exit(1);
+  }
+  *_cur = cur+1;
+}
+
+
 static void parse_func(const char* src, struct lex_token** _cur, struct ast_node* parent)
 { 
   struct ast_node* func = &parent->children[parent->children_len];
@@ -73,7 +87,7 @@ static void parse_func(const char* src, struct lex_token** _cur, struct ast_node
     fprintf(stderr, "error: Function without a name found at at pos %zu\n", (cur-1)->pos);
     exit(1);
   }
-    
+
   char* func_name = get_tokens_content(src, cur);
   if (is_keyword(func_name)) {
     fprintf(stderr, "error: Unexpected keyword as function name: \"%s\" at pos %zu\n", func_name, cur->pos);
@@ -93,11 +107,8 @@ static void parse_func(const char* src, struct lex_token** _cur, struct ast_node
   func->ref_in_parent = hm_get_ref(parent->sym_table.table, func_name);
 
   cur += 1;
-  if (cur->type != TOKEN_LPAREN || (cur+1)->type != TOKEN_RPAREN) {
-    fprintf(stderr, "error: Function declaration without arg list found: \"%s\" at pos %d\n", func_name, cur->pos);
-    exit(1);
-  }
-  cur += 2;
+  consume_single_token(src, &cur, TOKEN_LPAREN, '(');
+  consume_single_token(src, &cur, TOKEN_RPAREN, ')');
 
   parse_scope(src, &cur, func);
 
@@ -116,16 +127,7 @@ static void parse_scope(const char* src, struct lex_token** _cur, struct ast_nod
 
   struct lex_token* cur = *_cur;
 
-  struct symbol* func_id = (void*)parent->ref_in_parent->data;
-  char* func_name = func_id->name;
-
-  if (cur->type != TOKEN_LBRACKET) {
-    char* bad_token = get_tokens_content(src, cur);
-    fprintf(stderr, "error: Expected '{' found \"%s\" in func \"%s\" at pos %d\n", bad_token, func_name, cur->pos);
-    exit(1);
-  }
-  cur += 1;
-
+  consume_single_token(src, &cur, TOKEN_LBRACKET, '{');
 
   while(true) {
     bool should_quit = false;
@@ -136,7 +138,7 @@ static void parse_scope(const char* src, struct lex_token** _cur, struct ast_nod
 
     switch (cur->type) {
       case TOKEN_EOF: 
-        fprintf(stderr, "error: Unexpected EOF in func \"%s\" at pos %d\n", func_name, cur->pos);
+        fprintf(stderr, "error: Unexpected EOF in func at pos %d\n", cur->pos);
         exit(1);
       case TOKEN_RBRACKET:
         cur += 1;
@@ -146,7 +148,6 @@ static void parse_scope(const char* src, struct lex_token** _cur, struct ast_nod
 
     if (should_quit) break;
   }
-
 
   *_cur = cur;
 }
@@ -172,20 +173,14 @@ static void parse_var(const char* src, struct lex_token** _cur, struct ast_node*
     fprintf(stderr, "error: Two variables with the same name in the same scope found:  \"%s\" at pos %d\n", var_name, cur->pos);
     exit(1);
   }
-  
   struct symbol *sym = calloc(1, sizeof(struct symbol));
   sym->name = var_name;
   sym->type = SYM_VAR;
   sym->stack_offset = -1;
 
   cur += 1;
-  if (cur->type != TOKEN_COLON) {
-    char* bad_token = get_tokens_content(src, cur);
-    fprintf(stderr, "error: Expected ':', found \"%s\" at pos %d\n", bad_token, cur->pos);
-    exit(1);
-  }
+  consume_single_token(src, &cur, TOKEN_COLON, ':');
 
-  cur += 1;
   if (cur->type != TOKEN_IDENT) {
     char* bad_token = get_tokens_content(src, cur);
     fprintf(stderr, "error: Expected variable type, found \"%s\" at pos %d\n", bad_token, cur->pos);
@@ -198,20 +193,15 @@ static void parse_var(const char* src, struct lex_token** _cur, struct ast_node*
     fprintf(stderr, "error: \"%s\" at pos %d is not a valid type\n", type_name, cur->pos);
     exit(1);
   }
-
   sym->data_type = dt;
 
   hm_put(parent->sym_table.table, var_name, sym);
   var_decl->ref_in_parent = hm_get_ref(parent->sym_table.table, var_name);  
 
   cur += 1;
-  if (cur->type != TOKEN_SEMICOL) {
-    char* bad_token = get_tokens_content(src, cur);
-    fprintf(stderr, "error: Expected ';', found \"%s\" at pos %d\n", bad_token, cur->pos);
-    exit(1);
-  }
+  consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
-  *_cur = cur+1;
+  *_cur = cur;
 }
 
 
@@ -233,13 +223,9 @@ static void parse_exit(const char* src, struct lex_token** _cur, struct ast_node
   exitt->rhs = atoi(lit);
 
   cur += 1;
-  if (cur->type != TOKEN_SEMICOL) {
-    char* bad_token = get_tokens_content(src, cur);
-    fprintf(stderr, "error: Expected ';', found \"%s\" at pos %d\n", bad_token, cur->pos);
-    exit(1);
-  }
+  consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
-  *_cur = cur + 1;
+  *_cur = cur;
 }
 
 
@@ -278,12 +264,7 @@ static void parse_ident(const char* src, struct lex_token** _cur, struct ast_nod
         assign->rhs = atoi(lit);
 
         cur += 1;
-        if (cur->type != TOKEN_SEMICOL) {
-          char* bad_token = get_tokens_content(src, cur);
-          fprintf(stderr, "error: Expected ';', found \"%s\" at pos %d\n", bad_token, cur->pos);
-          exit(1);
-        }
-        cur += 1;
+        consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
         break;
     }
