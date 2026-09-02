@@ -80,16 +80,18 @@ typedef int ASTNodeType;
 #define AST_ASSIGNMENT 4
 #define AST_LITERAL    5
 #define AST_EXIT       6
+#define AST_NUMBER     7
+#define AST_SYMBOL     8
 
 struct ast_node {
   ASTNodeType        type;
   struct ast_node*   children;
   size_t             children_len;
+
   struct sym_table   sym_table;
   struct hmap_entry* ref_in_parent;
 
-  struct symbol* lhs;
-  int rhs;
+  int literal;
 };
 
 struct ast_node parse_ast(const char* src, struct lex_token* tokens);

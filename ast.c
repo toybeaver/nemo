@@ -5,17 +5,24 @@
 #include <string.h>
 
 
+static struct ast_node* define_node(ASTNodeType type, size_t children_cap, bool with_symtable, struct ast_node* parent); // used for all nodes except root
+static struct symbol*   define_symbol(struct ast_node* target, SymbolType type, char* name, struct ast_node* parent);
+
 static bool is_func(const char* src, struct lex_token* cur);
 static bool is_var(const char* src, struct lex_token* cur);
 static bool is_exit(const char* src, struct lex_token* cur);
 
-static void consume_single_token(const char* src, struct lex_token **cur, TokenType type, char expected);
+static void                         consume_single_token(const char* src, struct lex_token **_cur, TokenType type, char expected);
+static char*                        consume_ident(const char* src, struct lex_token **_cur, struct ast_node* parent, bool uniq);
+static char*                        consume_literal(const char* src, struct lex_token **_cur, struct ast_node* parent);
+static struct data_type_definition* consume_type(const char* src, struct lex_token **_cur, struct ast_node* parent); 
 
-static void parse_func(const char* src, struct lex_token** cur, struct ast_node* parent);
-static void parse_scope(const char* src, struct lex_token** cur, struct ast_node* parent);
-static void parse_var(const char* src, struct lex_token** cur, struct ast_node* parent);
-static void parse_exit(const char* src, struct lex_token** cur, struct ast_node* parent);
-static void parse_ident(const char* src, struct lex_token** cur, struct ast_node* parent);
+static void parse_func(const char* src, struct lex_token **_cur, struct ast_node* parent);
+static void parse_scope(const char* src, struct lex_token **_cur, struct ast_node* parent);
+static void parse_var(const char* src, struct lex_token **_cur, struct ast_node* parent);
+static void parse_exit(const char* src, struct lex_token **_cur, struct ast_node* parent);
+static void parse_ident(const char* src, struct lex_token **_cur, struct ast_node* parent);
+
 
 #define MAX_NODES /* for now */ 128
 struct ast_node parse_ast(const char* src, struct lex_token* tokens)
@@ -38,6 +45,33 @@ struct ast_node parse_ast(const char* src, struct lex_token* tokens)
   }
 
   return root;
+}
+
+
+static struct ast_node* define_node(ASTNodeType type, size_t children_cap, bool with_symtable, struct ast_node* parent)
+{
+  struct ast_node* node = &parent->children[parent->children_len];
+  node->type = type;
+
+  if (children_cap > 0) node->children = calloc(children_cap, sizeof(struct ast_node));   
+  else                  node->children = NULL;
+
+  if (with_symtable) node->sym_table = init_sym_table(&parent->sym_table);
+
+  parent->children_len += 1;
+
+  return node;
+}
+
+
+static struct symbol* define_symbol(struct ast_node* target, SymbolType type, char* name, struct ast_node* parent)
+{
+  struct symbol *sym = calloc(1, sizeof(struct symbol));
+  sym->name = name;
+  sym->type = type;
+  hm_put(parent->sym_table.table, name, sym);
+  target->ref_in_parent = hm_get_ref(parent->sym_table.table, name);
+  return sym;
 }
 
 
@@ -71,42 +105,83 @@ static void consume_single_token(const char* src, struct lex_token **_cur, Token
 }
 
 
-static void parse_func(const char* src, struct lex_token** _cur, struct ast_node* parent)
-{ 
-  struct ast_node* func = &parent->children[parent->children_len];
-  func->type = AST_FUNCTION;
-  func->children = malloc(sizeof(struct ast_node));
-  func->children_len = 1; // there's always 1 scope, even when empty 
-  func->sym_table = init_sym_table(&parent->sym_table);
-  parent->children_len += 1;
+static char* consume_ident(const char* src, struct lex_token** _cur, struct ast_node* parent, bool uniq)
+{
+  struct lex_token* cur = *_cur;
+  if (cur->type != TOKEN_IDENT) {
+    fprintf(stderr, "error: Unexpected token found at pos %zu: expected indentifier\n", cur->pos);
+    exit(1);
+  }
 
+  char* ident_name = get_tokens_content(src, cur);
+  if (is_keyword(ident_name)) {
+    fprintf(stderr, "error: Unexpected keyword found: \"%s\" at pos %zu\n", ident_name, cur->pos);
+    exit(1);
+  }
+
+  if (uniq && hm_get(parent->sym_table.table, ident_name) != NULL) {
+    fprintf(stderr, "error: Unique symbol expected, but second declaration found: \"%s\" at pos %d\n", ident_name, cur->pos);
+    exit(1);
+  }
+  
+  *_cur = cur+1;
+  
+  return ident_name;
+}
+
+
+static char* consume_literal(const char* src, struct lex_token **_cur, struct ast_node* parent)
+{
   struct lex_token* cur = *_cur;
 
+  char* lit = get_tokens_content(src, cur);
+  if (cur->type != TOKEN_LITERAL) {
+    fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", lit, cur->pos);
+    exit(1);      
+  }  
+
+  *_cur = cur+1;
+
+  return lit;
+}
+
+
+static struct data_type_definition* consume_type(const char* src, struct lex_token **_cur, struct ast_node* parent)
+{
+    struct lex_token* cur = *_cur;
+
+    if (cur->type != TOKEN_IDENT) {
+      char* bad_token = get_tokens_content(src, cur);
+      fprintf(stderr, "error: Expected type, found \"%s\" at pos %d\n", bad_token, cur->pos);
+      exit(1);
+    }
+
+    char* type_name = get_tokens_content(src, cur);
+    struct data_type_definition* dt = get_datatype_definition(type_name);
+    if (dt == NULL) {
+      fprintf(stderr, "error: \"%s\" at pos %d is not a valid type\n", type_name, cur->pos);
+      exit(1);
+    }
+    
+    *_cur = cur + 1;
+
+    return dt;
+}
+
+
+static void parse_func(const char* src, struct lex_token** _cur, struct ast_node* parent)
+{ 
+  struct lex_token* cur = *_cur;
+
+  struct ast_node* func = define_node(AST_FUNCTION, 1, true, parent);
+
   cur += 1;
-  if (cur->type != TOKEN_IDENT) {
-    fprintf(stderr, "error: Function without a name found at at pos %zu\n", (cur-1)->pos);
-    exit(1);
-  }
 
-  char* func_name = get_tokens_content(src, cur);
-  if (is_keyword(func_name)) {
-    fprintf(stderr, "error: Unexpected keyword as function name: \"%s\" at pos %zu\n", func_name, cur->pos);
-    exit(1);
-  }
+  char* func_name = consume_ident(src, &cur, parent, true);
 
-  if(hm_get(parent->sym_table.table, func_name) != NULL) {
-    fprintf(stderr, "error: Two functions with the same name in the same scope found:  \"%s\" at pos %d\n", func_name, cur->pos);
-    exit(1);
-  }
-  struct symbol *sym = calloc(1, sizeof(struct symbol));
-  sym->name         = func_name;
-  sym->type         = SYM_FUNC;
+  struct symbol* sym = define_symbol(func, SYM_FUNC, func_name, parent);  
   sym->is_main_func = strncmp(func_name, "main", cur->len) == 0;
 
-  hm_put(parent->sym_table.table, func_name, sym);
-  func->ref_in_parent = hm_get_ref(parent->sym_table.table, func_name);
-
-  cur += 1;
   consume_single_token(src, &cur, TOKEN_LPAREN, '(');
   consume_single_token(src, &cur, TOKEN_RPAREN, ')');
 
@@ -119,13 +194,9 @@ static void parse_func(const char* src, struct lex_token** _cur, struct ast_node
 #define MAX_SCOPE_STMTS /* for now */ 1024
 static void parse_scope(const char* src, struct lex_token** _cur, struct ast_node* parent)
 {
-  struct ast_node* scope = &parent->children[0];
-  scope->type = AST_SCOPE;
-  scope->children = malloc(sizeof(struct ast_node) * MAX_SCOPE_STMTS);
-  scope->children_len = 0;
-  scope->sym_table = init_sym_table(&parent->sym_table);
-
   struct lex_token* cur = *_cur;
+
+  struct ast_node* scope = define_node(AST_SCOPE, MAX_SCOPE_STMTS, true, parent);
 
   consume_single_token(src, &cur, TOKEN_LBRACKET, '{');
 
@@ -155,50 +226,21 @@ static void parse_scope(const char* src, struct lex_token** _cur, struct ast_nod
 
 static void parse_var(const char* src, struct lex_token** _cur, struct ast_node* parent)
 {
-  struct ast_node* var_decl = &parent->children[parent->children_len];
-  var_decl->type = AST_VAR_DECL;
-  parent->children_len += 1;
-
   struct lex_token* cur = *_cur;
 
-  cur += 1;
-  if (cur->type != TOKEN_IDENT) {
-    char* bad_token = get_tokens_content(src, cur);
-    fprintf(stderr, "error: Expected variable name, found \"%s\" at pos %d\n", bad_token, cur->pos);
-    exit(1);
-  }  
-
-  char* var_name = get_tokens_content(src, cur); 
-  if(hm_get(parent->sym_table.table, var_name) != NULL) {
-    fprintf(stderr, "error: Two variables with the same name in the same scope found:  \"%s\" at pos %d\n", var_name, cur->pos);
-    exit(1);
-  }
-  struct symbol *sym = calloc(1, sizeof(struct symbol));
-  sym->name = var_name;
-  sym->type = SYM_VAR;
-  sym->stack_offset = -1;
+  // TODO: this should have a symbol node as a child and in the future maybe an assignment op
+  struct ast_node* var_decl = define_node(AST_VAR_DECL, 0, false, parent);
 
   cur += 1;
+
+  char* var_name = consume_ident(src, &cur, parent, true);
+  struct symbol* sym = define_symbol(var_decl, SYM_VAR, var_name, parent);
+
   consume_single_token(src, &cur, TOKEN_COLON, ':');
 
-  if (cur->type != TOKEN_IDENT) {
-    char* bad_token = get_tokens_content(src, cur);
-    fprintf(stderr, "error: Expected variable type, found \"%s\" at pos %d\n", bad_token, cur->pos);
-    exit(1);
-  }
-
-  char* type_name = get_tokens_content(src, cur);
-  struct data_type_definition* dt = get_datatype_definition(type_name);
-  if (dt == NULL) {
-    fprintf(stderr, "error: \"%s\" at pos %d is not a valid type\n", type_name, cur->pos);
-    exit(1);
-  }
+  struct data_type_definition* dt = consume_type(src, &cur, parent); 
   sym->data_type = dt;
 
-  hm_put(parent->sym_table.table, var_name, sym);
-  var_decl->ref_in_parent = hm_get_ref(parent->sym_table.table, var_name);  
-
-  cur += 1;
   consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
   *_cur = cur;
@@ -209,20 +251,15 @@ static void parse_exit(const char* src, struct lex_token** _cur, struct ast_node
 {
   struct lex_token* cur = *_cur;
 
-  struct ast_node* exitt = &parent->children[parent->children_len];
-  exitt->type = AST_EXIT;
-  parent->children_len += 1;
+  struct ast_node* exitt = define_node(AST_EXIT, 1, false, parent);
 
   cur += 1;
     
-  char* lit = get_tokens_content(src, cur);
-  if (cur->type != TOKEN_LITERAL) {
-    fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", lit, cur->pos);
-    exit(1);      
-  }
-  exitt->rhs = atoi(lit);
+  char* lit = consume_literal(src, &cur, parent);
 
-  cur += 1;
+  struct ast_node* rhs = define_node(AST_LITERAL, 0, false, exitt);
+  rhs->literal = atoi(lit);
+
   consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
   *_cur = cur;
@@ -234,36 +271,29 @@ static void parse_ident(const char* src, struct lex_token** _cur, struct ast_nod
 {
   struct lex_token* cur = *_cur;
 
-  char* sym_name = get_tokens_content(src, cur);
-  if (is_keyword(sym_name)) {
-    fprintf(stderr, "error: Unexpected keyword \"%s\" at pos %d\n", sym_name, cur->pos);
-    exit(1);
-  }
-  
-  struct symbol *sym = hm_get(parent->sym_table.table, sym_name);
-  if (sym == NULL) {
-    fprintf(stderr, "error: Undeclared variable \"%s\"at pos %d\n", sym_name, cur->pos);
-    fprintf(stderr, "tip:   try first declaring it with \"var %s: <type>\"\n", sym_name);
+  char* var_name = consume_ident(src, &cur, parent, false);
+ 
+  struct hmap_entry *sym_entry = hm_get_ref(parent->sym_table.table, var_name);
+  if (sym_entry == NULL) {
+    fprintf(stderr, "error: Undeclared variable \"%s\"at pos %d\n", var_name, cur->pos);
+    fprintf(stderr, "tip:   try first declaring it with \"var %s: <type>\"\n", var_name);
     exit(1);
   }
  
-  cur += 1;
   switch (cur->type) {
     case TOKEN_ASSIGN: {
         cur += 1;
-        struct ast_node* assign = &parent->children[parent->children_len];
-        assign->type = AST_ASSIGNMENT;
-        assign->lhs = sym;
-        parent->children_len += 1;
 
-        char* lit = get_tokens_content(src, cur);
-        if (cur->type != TOKEN_LITERAL) {
-          fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", lit, cur->pos);
-          exit(1);      
-        }
-        assign->rhs = atoi(lit);
+        struct ast_node* assign = define_node(AST_ASSIGNMENT, 2, false, parent);
+        
+        struct ast_node* lhs = define_node(AST_SYMBOL, 0, false, assign);
+        lhs->ref_in_parent = sym_entry;
+        
+        char* lit = consume_literal(src, &cur, parent);
 
-        cur += 1;
+        struct ast_node* rhs = define_node(AST_LITERAL, 0, false, assign);
+        rhs->literal = atoi(lit);
+
         consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
         break;

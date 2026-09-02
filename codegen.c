@@ -118,15 +118,21 @@ static void cg_asm_for_var_decl(struct ast_node var, int *stack_offset)
 
 static void cg_asm_for_assignment(struct ast_node assign)
 {
-  assert(assign.lhs != NULL);
-  int stack_offset = assign.lhs->stack_offset;
+  assert(assign.children_len == 2);
 
-  printf("\tmovl $%d, %d(%%rbp)\n", assign.rhs, stack_offset);
+  struct ast_node lhs = assign.children[0];
+  struct ast_node rhs = assign.children[1];
+
+  int stack_offset = ((struct symbol*)lhs.ref_in_parent->data)->stack_offset;
+
+  printf("\tmovl $%d, %d(%%rbp)\n", rhs.literal, stack_offset);
 }
 
 
 static void cg_asm_for_exit(struct ast_node exit)
 {
-	printf("\tmov  $%d, %rax\n", exit.rhs);
+  struct ast_node rhs = exit.children[0];
+
+	printf("\tmov  $%d, %rax\n", rhs.literal);
 	printf("\tjmp  " EXIT_ADDR "\n");
 }
