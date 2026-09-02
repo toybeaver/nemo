@@ -66,7 +66,8 @@ struct sym_table {
   struct sym_table* parent;
 };
 
-struct sym_table init_sym_table(struct sym_table* parent);
+struct sym_table* init_sym_table(struct sym_table *parent);
+struct symbol*    get_symbol(struct sym_table *table, char *key);
 
  
 // ============================
@@ -84,12 +85,12 @@ typedef int ASTNodeType;
 #define AST_SYMBOL     8
 
 struct ast_node {
-  ASTNodeType        type;
-  struct ast_node*   children;
-  size_t             children_len;
+  ASTNodeType      type;
+  struct ast_node* children;
+  size_t           children_len;
 
-  struct sym_table   sym_table;
-  struct hmap_entry* ref_in_parent;
+  struct sym_table* sym_table;
+  struct symbol*    sym_ref;
 
   int literal;
 };
@@ -126,9 +127,8 @@ struct hmap {
 void  hm_init(struct hmap *h);
 void  hm_free(struct hmap *h);
 // For now support only str keys, changing later is easy
-void*              hm_get(struct hmap *h, const char* key);
-struct hmap_entry* hm_get_ref(struct hmap *h, const char* key);
-void               hm_put(struct hmap *h, char* key, void* value);
+void* hm_get(struct hmap *h, const char* key);
+void  hm_put(struct hmap *h, char* key, void* value);
 
 
 // ============================

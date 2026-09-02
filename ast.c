@@ -17,11 +17,12 @@ static char*                        consume_ident(const char* src, struct lex_to
 static char*                        consume_literal(const char* src, struct lex_token **_cur, struct ast_node* parent);
 static struct data_type_definition* consume_type(const char* src, struct lex_token **_cur, struct ast_node* parent); 
 
-static void parse_func(const char* src, struct lex_token **_cur, struct ast_node* parent);
-static void parse_scope(const char* src, struct lex_token **_cur, struct ast_node* parent);
-static void parse_var(const char* src, struct lex_token **_cur, struct ast_node* parent);
-static void parse_exit(const char* src, struct lex_token **_cur, struct ast_node* parent);
-static void parse_ident(const char* src, struct lex_token **_cur, struct ast_node* parent);
+static void parse_func(const char *src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_scope(const char *src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_var(const char *src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_exit(const char *src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_ident(const char *src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_expr(const char *src, struct lex_token **_cur, struct ast_node *parent);
 
 
 #define MAX_NODES /* for now */ 128
@@ -29,7 +30,7 @@ struct ast_node parse_ast(const char* src, struct lex_token* tokens)
 {
   struct ast_node root = {
     .type = AST_ROOT,
-    .children = malloc(sizeof(struct ast_node) * MAX_NODES),
+    .children = calloc(MAX_NODES, sizeof(struct ast_node)),
     .children_len = 0,
     .sym_table = init_sym_table(NULL),
   };
@@ -56,7 +57,9 @@ static struct ast_node* define_node(ASTNodeType type, size_t children_cap, bool 
   if (children_cap > 0) node->children = calloc(children_cap, sizeof(struct ast_node));   
   else                  node->children = NULL;
 
-  if (with_symtable) node->sym_table = init_sym_table(&parent->sym_table);
+  if (with_symtable) node->sym_table = init_sym_table(parent->sym_table);
+  else               node->sym_table = parent->sym_table; // helps with scope propagation when nodes don't
+                                                          // need a dedicated sym_table
 
   parent->children_len += 1;
 
@@ -69,8 +72,10 @@ static struct symbol* define_symbol(struct ast_node* target, SymbolType type, ch
   struct symbol *sym = calloc(1, sizeof(struct symbol));
   sym->name = name;
   sym->type = type;
-  hm_put(parent->sym_table.table, name, sym);
-  target->ref_in_parent = hm_get_ref(parent->sym_table.table, name);
+
+  hm_put(parent->sym_table->table, name, sym);
+  target->sym_ref = sym;
+
   return sym;
 }
 
@@ -119,7 +124,7 @@ static char* consume_ident(const char* src, struct lex_token** _cur, struct ast_
     exit(1);
   }
 
-  if (uniq && hm_get(parent->sym_table.table, ident_name) != NULL) {
+  if (uniq && hm_get(parent->sym_table->table, ident_name) != NULL) {
     fprintf(stderr, "error: Unique symbol expected, but second declaration found: \"%s\" at pos %d\n", ident_name, cur->pos);
     exit(1);
   }
@@ -250,16 +255,11 @@ static void parse_var(const char* src, struct lex_token** _cur, struct ast_node*
 static void parse_exit(const char* src, struct lex_token** _cur, struct ast_node* parent)
 {
   struct lex_token* cur = *_cur;
-
   struct ast_node* exitt = define_node(AST_EXIT, 1, false, parent);
 
   cur += 1;
-    
-  char* lit = consume_literal(src, &cur, parent);
 
-  struct ast_node* rhs = define_node(AST_LITERAL, 0, false, exitt);
-  rhs->literal = atoi(lit);
-
+  parse_expr(src, &cur, exitt);
   consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
   *_cur = cur;
@@ -273,8 +273,8 @@ static void parse_ident(const char* src, struct lex_token** _cur, struct ast_nod
 
   char* var_name = consume_ident(src, &cur, parent, false);
  
-  struct hmap_entry *sym_entry = hm_get_ref(parent->sym_table.table, var_name);
-  if (sym_entry == NULL) {
+  struct symbol *sym = get_symbol(parent->sym_table, var_name);
+  if (sym == NULL) {
     fprintf(stderr, "error: Undeclared variable \"%s\"at pos %d\n", var_name, cur->pos);
     fprintf(stderr, "tip:   try first declaring it with \"var %s: <type>\"\n", var_name);
     exit(1);
@@ -287,12 +287,13 @@ static void parse_ident(const char* src, struct lex_token** _cur, struct ast_nod
         struct ast_node* assign = define_node(AST_ASSIGNMENT, 2, false, parent);
         
         struct ast_node* lhs = define_node(AST_SYMBOL, 0, false, assign);
-        lhs->ref_in_parent = sym_entry;
+        lhs->sym_ref = sym;
         
-        char* lit = consume_literal(src, &cur, parent);
+        parse_expr(src, &cur, assign);
+        // char* lit = consume_literal(src, &cur, parent);
 
-        struct ast_node* rhs = define_node(AST_LITERAL, 0, false, assign);
-        rhs->literal = atoi(lit);
+        // struct ast_node* rhs = define_node(AST_LITERAL, 0, false, assign);
+        // rhs->literal = atoi(lit);
 
         consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
@@ -310,4 +311,40 @@ static void parse_ident(const char* src, struct lex_token** _cur, struct ast_nod
   }
 
   *_cur = cur;
+}
+
+
+static void parse_expr(const char *src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+    
+  struct ast_node* expr = NULL;
+  switch (cur->type) {
+    case TOKEN_LITERAL:
+      char* lit = consume_literal(src, &cur, parent);
+      expr = define_node(AST_LITERAL, 0, false, parent);
+      expr->literal = atoi(lit);
+      break;
+
+    case TOKEN_IDENT:
+      char* var_name = consume_ident(src, &cur, parent, false); 
+
+      struct symbol *sym = get_symbol(parent->sym_table, var_name);
+      if (sym == NULL) {
+        fprintf(stderr, "error: Undeclared variable \"%s\" at pos %d\n", var_name, cur->pos);
+        fprintf(stderr, "tip:   try first declaring it with \"var %s: <type>\"\n", var_name);
+        exit(1);
+      }
+
+      expr = define_node(AST_SYMBOL, 0, false, parent);
+      expr->sym_ref = sym;
+      break;
+
+    default:
+      char* bad_token = consume_literal(src, &cur, parent);
+      fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", bad_token, cur->pos);
+      exit(1);      
+  }
+
+  *_cur = cur;  
 }

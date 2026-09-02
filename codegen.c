@@ -63,7 +63,7 @@ static void cg_start()
 
 
 static bool cg_asm_for_func(struct ast_node func) {
-  struct symbol* sym = func.ref_in_parent->data;
+  struct symbol* sym = func.sym_ref;
 
   printf("%s:\n", sym->name);
   printf("\tpush %%rbp\n");
@@ -101,8 +101,8 @@ static bool cg_asm_for_func(struct ast_node func) {
 
 static void cg_asm_for_var_decl(struct ast_node var, int *stack_offset)
 {
-  struct symbol* sym = var.ref_in_parent->data;
-  assert(sym != NULL);
+  struct symbol* sym = var.sym_ref;
+  assert(sym);
 
   struct data_type_definition *dt = sym->data_type;
   assert(dt != NULL); 
@@ -121,11 +121,17 @@ static void cg_asm_for_assignment(struct ast_node assign)
   assert(assign.children_len == 2);
 
   struct ast_node lhs = assign.children[0];
+  int lhs_stack_offset = lhs.sym_ref->stack_offset;
+
   struct ast_node rhs = assign.children[1];
-
-  int stack_offset = ((struct symbol*)lhs.ref_in_parent->data)->stack_offset;
-
-  printf("\tmovl $%d, %d(%%rbp)\n", rhs.literal, stack_offset);
+  switch (rhs.type) {
+    case AST_LITERAL: printf("\tmovl  $%d, %d(%%rbp)\n", rhs.literal, lhs_stack_offset); break;
+    case AST_SYMBOL:
+      int rhs_stack_offset = rhs.sym_ref->stack_offset;
+      printf("\tmovl  %d(%%rbp), %%r8d\n", rhs_stack_offset);
+      printf("\tmovl  %%r8d, %d(%%rbp)\n", lhs_stack_offset);
+      break;
+  }
 }
 
 
@@ -133,6 +139,13 @@ static void cg_asm_for_exit(struct ast_node exit)
 {
   struct ast_node rhs = exit.children[0];
 
-	printf("\tmov  $%d, %rax\n", rhs.literal);
+  switch (rhs.type) {
+    case AST_LITERAL: printf("\tmov  $%d, %rax\n", rhs.literal); break;
+    case AST_SYMBOL:
+      int stack_offset = rhs.sym_ref->stack_offset;
+      printf("\tmovl  %d(%%rbp), %%eax\n", stack_offset);
+      break;
+  }
+
 	printf("\tjmp  " EXIT_ADDR "\n");
 }

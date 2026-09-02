@@ -52,21 +52,6 @@ void* hm_get(struct hmap *h, const char* key)
 }
 
 
-struct hmap_entry* hm_get_ref(struct hmap *h, const char* key)
-{
-  size_t idx = hm_hash(h, key);
-  struct hmap_entry *entry = &h->entries[idx];
-  while (entry->key && strcmp(entry->key, key) != 0) {
-    idx = (idx + 1) % h->cap;
-    entry = &h->entries[idx];   
-  }
-
-  if (!entry->key) return NULL;
-
-  return entry;
-}
-
-
 #define HM_HI_LOAD_FACTOR 0.69
 void hm_put(struct hmap *h, char* key, void* value)
 {

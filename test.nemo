@@ -3,10 +3,10 @@ func main()
 	var x: int32;
 	var y: int32; 
 
-	x = 34;
-	y = 35;
+	x = 84;
+	y = x;
 
-	exit 69;
+	exit y;
 }
  
 func test()
