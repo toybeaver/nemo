@@ -31,6 +31,7 @@ typedef int TokenType;
 #define TOKEN_ASSIGN    9
 #define TOKEN_LITERAL  10
 #define TOKEN_SUM      11
+#define TOKEN_HYPHEN   12
 
 struct lex_token {
   TokenType type;  
@@ -96,6 +97,8 @@ struct ast_node {
   struct symbol*    sym_ref;
 
   int literal;
+
+  TokenType prev_token;
 };
 
 struct ast_node parse_ast(const char* src, struct lex_token* tokens);

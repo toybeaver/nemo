@@ -78,6 +78,7 @@ static struct lex_token next_token(const char* src, int initial_pos)
     case ';': tok.type = TOKEN_SEMICOL;  return tok;
     case '=': tok.type = TOKEN_ASSIGN;   return tok;
     case '+': tok.type = TOKEN_SUM;      return tok;
+    case '-': tok.type = TOKEN_HYPHEN;   return tok;
   }
 
   tok.type = TOKEN_ERR;

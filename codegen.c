@@ -178,7 +178,11 @@ static void cg_asm_for_add(struct ast_node add)
   asm_load_operand_to_reg(add.children[0], "edx");
   for (int i = 1; i < add.children_len; i++) {
     asm_load_operand_to_reg(add.children[i], "eax");
-    printf("\taddl %%eax, %%edx\n");
+    if (add.children[i].prev_token == TOKEN_HYPHEN) {
+      printf("\tsubl %%eax, %%edx\n");      
+    } else {
+      printf("\taddl %%eax, %%edx\n");      
+    }
   }
 }
 

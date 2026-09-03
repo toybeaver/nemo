@@ -353,9 +353,16 @@ static void parse_math_add(const char* src, struct lex_token **_cur, struct ast_
   
   parse_operand(src, &cur, add);
 
-  while (cur->type == TOKEN_SUM) {
-    consume_single_token(src, &cur, TOKEN_SUM, '+'); 
-    parse_operand(src, &cur, add);
+  while (cur->type == TOKEN_SUM || cur->type == TOKEN_HYPHEN) {
+    if (cur->type == TOKEN_SUM) {
+      consume_single_token(src, &cur, TOKEN_SUM, '+'); 
+      parse_operand(src, &cur, add);
+    }
+    else {
+      consume_single_token(src, &cur, TOKEN_HYPHEN, '-'); 
+      parse_operand(src, &cur, add);
+      add->children[add->children_len-1].prev_token = TOKEN_HYPHEN;
+    }
   }
 
   *_cur = cur;
