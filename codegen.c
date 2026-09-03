@@ -12,6 +12,10 @@ static bool cg_asm_for_func(struct ast_node func);
 static void cg_asm_for_var_decl(struct ast_node func, int *stack_offset);
 static void cg_asm_for_assignment(struct ast_node assign);
 static void cg_asm_for_exit(struct ast_node exit);
+static void cg_asm_for_expr(struct ast_node expr);
+static void cg_asm_for_add(struct ast_node add);
+
+static void asm_load_operand_to_reg(struct ast_node op, char* reg);
 
 void gen_asm_to_stdout(struct ast_node ast)
 {
@@ -131,6 +135,10 @@ static void cg_asm_for_assignment(struct ast_node assign)
       printf("\tmovl  %d(%%rbp), %%r8d\n", rhs_stack_offset);
       printf("\tmovl  %%r8d, %d(%%rbp)\n", lhs_stack_offset);
       break;
+    case AST_EXPR:
+      cg_asm_for_expr(rhs);
+      printf("\tmovl  %%edx, %d(%%rbp)\n", lhs_stack_offset);
+      break;
   }
 }
 
@@ -145,7 +153,49 @@ static void cg_asm_for_exit(struct ast_node exit)
       int stack_offset = rhs.sym_ref->stack_offset;
       printf("\tmovl  %d(%%rbp), %%eax\n", stack_offset);
       break;
+    case AST_EXPR:
+      cg_asm_for_expr(rhs);
+      printf("\tmovl  %%edx, %%eax\n");
+      break;
   }
 
 	printf("\tjmp  " EXIT_ADDR "\n");
+}
+
+
+static void cg_asm_for_expr(struct ast_node expr)
+{
+  assert(expr.type == AST_EXPR);
+
+  struct ast_node exp = expr.children[0];
+  if (exp.type == AST_MATH_ADD) cg_asm_for_add(exp);     
+  else                          asm_load_operand_to_reg(exp, "eax");
+}
+
+
+static void cg_asm_for_add(struct ast_node add)
+{
+  asm_load_operand_to_reg(add.children[0], "edx");
+  for (int i = 1; i < add.children_len; i++) {
+    asm_load_operand_to_reg(add.children[i], "eax");
+    printf("\taddl %%eax, %%edx\n");
+  }
+}
+
+
+static void asm_load_operand_to_reg(struct ast_node op, char* reg)
+{
+  switch (op.type) {
+    case AST_LITERAL:
+      printf("\tmovl  $%d, %%%s\n", op.literal, reg);
+      break;
+
+    case AST_SYMBOL:
+      int stack_offset = op.sym_ref->stack_offset;
+      printf("\tmovl  %d(%%rbp), %%%s\n", stack_offset, reg);
+      break;
+    default:
+      fprintf(stderr, "error: UNREACHABLE: EXPECTED OPERAND: found %d\n", op.type);
+      exit(1);
+  }  
 }

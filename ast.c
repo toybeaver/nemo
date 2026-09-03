@@ -5,6 +5,30 @@
 #include <string.h>
 
 
+/*
+  S := (FUNC)*
+  FUNC := 'func' IDENT '(' ')' SCOPE
+
+  SCOPE := '{' STMT;* '}'
+
+  STMT := VAR_DECL | EXIT | ASSIGN
+
+  VAR_DECL := 'var' IDENT ':' TYPE
+  EXIT     := 'exit' EXPR
+  ASSIGN   := IDENT '=' EXPR
+
+  EXPR := MATH_ADD
+  MATH_ADD := OPERAND '+' MATH_ADD | OPERAND
+
+  OPERAND := LITERAL | IDENT
+
+  TYPE  := 'int32'
+
+  LITERAL := [0-9]+
+  IDENT := [aA-zZ_]+[aA-zZ0-9]*
+*/
+
+
 static struct ast_node* define_node(ASTNodeType type, size_t children_cap, bool with_symtable, struct ast_node* parent); // used for all nodes except root
 static struct symbol*   define_symbol(struct ast_node* target, SymbolType type, char* name, struct ast_node* parent);
 
@@ -21,8 +45,10 @@ static void parse_func(const char *src, struct lex_token **_cur, struct ast_node
 static void parse_scope(const char *src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_var(const char *src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_exit(const char *src, struct lex_token **_cur, struct ast_node *parent);
-static void parse_ident(const char *src, struct lex_token **_cur, struct ast_node *parent);
-static void parse_expr(const char *src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_assign(const char *src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_expr(const char* src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_math_add(const char* src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_operand(const char *src, struct lex_token **_cur, struct ast_node *parent);
 
 
 #define MAX_NODES /* for now */ 128
@@ -40,7 +66,7 @@ struct ast_node parse_ast(const char* src, struct lex_token* tokens)
     if (is_func(src, cur)) parse_func(src, &cur, &root);
     else {
       char* s = get_tokens_content(src, cur);
-      fprintf(stderr, "error: Unexpected token found on root scope: \"%s\" at pos %d\n", s, cur->pos);
+      fprintf(stderr, "error: [0]Unexpected token found on root scope: \"%s\" at pos %d\n", s, cur->pos);
       exit(1);
     }
   }
@@ -141,7 +167,7 @@ static char* consume_literal(const char* src, struct lex_token **_cur, struct as
 
   char* lit = get_tokens_content(src, cur);
   if (cur->type != TOKEN_LITERAL) {
-    fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", lit, cur->pos);
+    fprintf(stderr, "error: [2]Unexpected token \"%s\" at pos %d\n", lit, cur->pos);
     exit(1);      
   }  
 
@@ -210,7 +236,8 @@ static void parse_scope(const char* src, struct lex_token** _cur, struct ast_nod
 
     if      (is_var(src, cur))         parse_var(src, &cur, scope); 
     else if (is_exit(src, cur))        parse_exit(src, &cur, scope); 
-    else if (cur->type == TOKEN_IDENT) parse_ident(src, &cur, scope);
+    else if (cur->type == TOKEN_IDENT) parse_assign(src, &cur, scope);
+    consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
     switch (cur->type) {
       case TOKEN_EOF: 
@@ -246,8 +273,6 @@ static void parse_var(const char* src, struct lex_token** _cur, struct ast_node*
   struct data_type_definition* dt = consume_type(src, &cur, parent); 
   sym->data_type = dt;
 
-  consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
-
   *_cur = cur;
 }
 
@@ -260,14 +285,13 @@ static void parse_exit(const char* src, struct lex_token** _cur, struct ast_node
   cur += 1;
 
   parse_expr(src, &cur, exitt);
-  consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
   *_cur = cur;
 }
 
 
 
-static void parse_ident(const char* src, struct lex_token** _cur, struct ast_node* parent)
+static void parse_assign(const char* src, struct lex_token** _cur, struct ast_node* parent)
 {
   struct lex_token* cur = *_cur;
 
@@ -290,12 +314,6 @@ static void parse_ident(const char* src, struct lex_token** _cur, struct ast_nod
         lhs->sym_ref = sym;
         
         parse_expr(src, &cur, assign);
-        // char* lit = consume_literal(src, &cur, parent);
-
-        // struct ast_node* rhs = define_node(AST_LITERAL, 0, false, assign);
-        // rhs->literal = atoi(lit);
-
-        consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
 
         break;
     }
@@ -305,7 +323,7 @@ static void parse_ident(const char* src, struct lex_token** _cur, struct ast_nod
     }
     default: {
       char* bad_token = get_tokens_content(src, cur);
-      fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", bad_token, cur->pos);
+      fprintf(stderr, "error: [3]Unexpected token \"%s\" at pos %d\n", bad_token, cur->pos);
       exit(1);      
     }
   }
@@ -314,7 +332,37 @@ static void parse_ident(const char* src, struct lex_token** _cur, struct ast_nod
 }
 
 
-static void parse_expr(const char *src, struct lex_token **_cur, struct ast_node *parent)
+static void parse_expr(const char* src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+
+  struct ast_node* expr = define_node(AST_EXPR, 1, false, parent);
+
+  // TODO: handle bool expressions too
+  parse_math_add(src, &cur, expr);
+
+  *_cur = cur;
+}
+
+
+#define MAX_EXPR_SIZE /* for now */ 128
+static void parse_math_add(const char* src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+  struct ast_node* add = define_node(AST_MATH_ADD, MAX_EXPR_SIZE, false, parent);
+  
+  parse_operand(src, &cur, add);
+
+  while (cur->type == TOKEN_SUM) {
+    consume_single_token(src, &cur, TOKEN_SUM, '+'); 
+    parse_operand(src, &cur, add);
+  }
+
+  *_cur = cur;
+}
+
+
+static void parse_operand(const char *src, struct lex_token **_cur, struct ast_node *parent)
 {
   struct lex_token* cur = *_cur;
     
@@ -342,7 +390,7 @@ static void parse_expr(const char *src, struct lex_token **_cur, struct ast_node
 
     default:
       char* bad_token = consume_literal(src, &cur, parent);
-      fprintf(stderr, "error: Unexpected token \"%s\" at pos %d\n", bad_token, cur->pos);
+      fprintf(stderr, "error: [5]Unexpected token \"%s\" at pos %d\n", bad_token, cur->pos);
       exit(1);      
   }
 

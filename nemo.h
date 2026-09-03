@@ -20,16 +20,17 @@ struct data_type_definition* get_datatype_definition(const char* dt);
 // ============================
 typedef int TokenType;
 #define TOKEN_ERR      -1
-#define TOKEN_EOF      0
-#define TOKEN_IDENT    1
-#define TOKEN_LPAREN   2
-#define TOKEN_RPAREN   3
-#define TOKEN_LBRACKET 4
-#define TOKEN_RBRACKET 5
-#define TOKEN_COLON    6
-#define TOKEN_SEMICOL  8
+#define TOKEN_EOF       0
+#define TOKEN_IDENT     1
+#define TOKEN_LPAREN    2
+#define TOKEN_RPAREN    3
+#define TOKEN_LBRACKET  4
+#define TOKEN_RBRACKET  5
+#define TOKEN_COLON     6
+#define TOKEN_SEMICOL   8
 #define TOKEN_ASSIGN    9
 #define TOKEN_LITERAL  10
+#define TOKEN_SUM      11
 
 struct lex_token {
   TokenType type;  
@@ -74,15 +75,17 @@ struct symbol*    get_symbol(struct sym_table *table, char *key);
 //       AST
 // ============================
 typedef int ASTNodeType;
-#define AST_ROOT       0
-#define AST_FUNCTION   1
-#define AST_SCOPE      2
-#define AST_VAR_DECL   3
-#define AST_ASSIGNMENT 4
-#define AST_LITERAL    5
-#define AST_EXIT       6
-#define AST_NUMBER     7
-#define AST_SYMBOL     8
+#define AST_ROOT        0
+#define AST_FUNCTION    1
+#define AST_SCOPE       2
+#define AST_VAR_DECL    3
+#define AST_ASSIGNMENT  4
+#define AST_LITERAL     5
+#define AST_EXIT        6
+#define AST_NUMBER      7
+#define AST_SYMBOL      8
+#define AST_MATH_ADD    9
+#define AST_EXPR       10
 
 struct ast_node {
   ASTNodeType      type;

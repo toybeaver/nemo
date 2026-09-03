@@ -3,10 +3,9 @@ func main()
 	var x: int32;
 	var y: int32; 
 
-	x = 84;
-	y = x;
-
-	exit y;
+	x = 5;
+	y = x + 10 + 12;
+	exit y + 3;
 }
  
 func test()

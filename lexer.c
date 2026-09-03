@@ -27,7 +27,7 @@ struct lex_token* lex_scan(const char* src)
   }
  
   if (t[i].type == TOKEN_ERR) {
-    fprintf(stderr, "error: Unexpected token found: '%c' at pos %zu\n", src[t[i].pos], t[i].pos);
+    fprintf(stderr, "error: Unexpected token found: '%c'(ascii:%d) at pos %zu\n", src[t[i].pos], src[t[i].pos], t[i].pos);
     exit(1);
   }
 
@@ -56,11 +56,13 @@ static struct lex_token next_token(const char* src, int initial_pos)
 
   while (isspace(src[cur]) && src[cur] != '\0') cur++; 
 
-  if (src[cur] == '\0') {
+  if (src[cur] == '\0' || src[cur] == EOF) {
     tok.type = TOKEN_EOF;
     tok.pos = cur;
     return tok;
   }
+
+  int pre = cur;
 
   if (try_parse_ident(src, cur, &tok)) return tok;
   if (try_parse_literal(src, cur, &tok)) return tok;
@@ -75,6 +77,7 @@ static struct lex_token next_token(const char* src, int initial_pos)
     case ':': tok.type = TOKEN_COLON;    return tok;
     case ';': tok.type = TOKEN_SEMICOL;  return tok;
     case '=': tok.type = TOKEN_ASSIGN;   return tok;
+    case '+': tok.type = TOKEN_SUM;      return tok;
   }
 
   tok.type = TOKEN_ERR;
