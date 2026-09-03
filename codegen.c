@@ -1,3 +1,9 @@
+// Truth be told: this whole file is a mess, no register, alignment, sizing, types, etc control
+// whatsoever, plus the very unoptmizied generated code. This will stay fucked up until I get
+// to the point to write a proper codegen file per-os setup. After math and bool expressions,
+// control-flow logic, and basic interfacing with the OS is properly implemented in the
+// language.
+
 #include "nemo.h"
 #include <assert.h>
 #include <stdio.h>
@@ -13,7 +19,8 @@ static void cg_asm_for_var_decl(struct ast_node func, int *stack_offset);
 static void cg_asm_for_assignment(struct ast_node assign);
 static void cg_asm_for_exit(struct ast_node exit);
 static void cg_asm_for_expr(struct ast_node expr);
-static void cg_asm_for_add(struct ast_node add);
+static void cg_asm_for_math_add(struct ast_node add);
+static void cg_asm_for_math_mul(struct ast_node mul);
 
 static void asm_load_operand_to_reg(struct ast_node op, char* reg);
 
@@ -70,8 +77,8 @@ static bool cg_asm_for_func(struct ast_node func) {
   struct symbol* sym = func.sym_ref;
 
   printf("%s:\n", sym->name);
-  printf("\tpush %%rbp\n");
-  printf("\tmov  %%rsp, %%rbp\n");
+  printf("\tpush %%rbp \t\t# INIT STACK\n");
+  printf("\tmov  %%rsp, %%rbp\n\n");
   
   struct ast_node scope = func.children[0];
   int stack_offset = 0;
@@ -115,8 +122,8 @@ static void cg_asm_for_var_decl(struct ast_node var, int *stack_offset)
   *stack_offset -= dt->size;
   sym->stack_offset = *stack_offset;
 
-  printf("\tadd  $%d, %%rbp\n", *stack_offset);
-  printf("\tmovl $0,  %d(%%rbp)\n", *stack_offset);
+  printf("\tadd  $%d, %%rbp \t\t# VAR DECL \"%s\"\n", *stack_offset, sym->name);
+  printf("\tmovl $0,  %d(%%rbp)\n\n", *stack_offset);
 }
 
 
@@ -128,18 +135,8 @@ static void cg_asm_for_assignment(struct ast_node assign)
   int lhs_stack_offset = lhs.sym_ref->stack_offset;
 
   struct ast_node rhs = assign.children[1];
-  switch (rhs.type) {
-    case AST_LITERAL: printf("\tmovl  $%d, %d(%%rbp)\n", rhs.literal, lhs_stack_offset); break;
-    case AST_SYMBOL:
-      int rhs_stack_offset = rhs.sym_ref->stack_offset;
-      printf("\tmovl  %d(%%rbp), %%r8d\n", rhs_stack_offset);
-      printf("\tmovl  %%r8d, %d(%%rbp)\n", lhs_stack_offset);
-      break;
-    case AST_EXPR:
-      cg_asm_for_expr(rhs);
-      printf("\tmovl  %%edx, %d(%%rbp)\n", lhs_stack_offset);
-      break;
-  }
+  cg_asm_for_expr(rhs);
+  printf("\tmovl  %%ecx, %d(%%rbp) \t\t# VAR EXP ASSIGN \"%s\"\n\n", lhs_stack_offset, lhs.sym_ref->name);
 }
 
 
@@ -147,19 +144,10 @@ static void cg_asm_for_exit(struct ast_node exit)
 {
   struct ast_node rhs = exit.children[0];
 
-  switch (rhs.type) {
-    case AST_LITERAL: printf("\tmov  $%d, %rax\n", rhs.literal); break;
-    case AST_SYMBOL:
-      int stack_offset = rhs.sym_ref->stack_offset;
-      printf("\tmovl  %d(%%rbp), %%eax\n", stack_offset);
-      break;
-    case AST_EXPR:
-      cg_asm_for_expr(rhs);
-      printf("\tmovl  %%edx, %%eax\n");
-      break;
-  }
-
-	printf("\tjmp  " EXIT_ADDR "\n");
+ 
+  cg_asm_for_expr(rhs);
+  printf("\tmovl  %%ecx, %%eax \t\t# EXIT CALL \n");
+	printf("\tjmp  " EXIT_ADDR "\n\n");
 }
 
 
@@ -168,20 +156,40 @@ static void cg_asm_for_expr(struct ast_node expr)
   assert(expr.type == AST_EXPR);
 
   struct ast_node exp = expr.children[0];
-  if (exp.type == AST_MATH_ADD) cg_asm_for_add(exp);     
+  if (exp.type == AST_MATH_ADD) cg_asm_for_math_add(exp);     
   else                          asm_load_operand_to_reg(exp, "eax");
 }
 
 
-static void cg_asm_for_add(struct ast_node add)
+static void cg_asm_for_math_add(struct ast_node add)
 {
-  asm_load_operand_to_reg(add.children[0], "edx");
+  cg_asm_for_math_mul(add.children[0]);
+  printf("\tmovl  %%edx, %%ecx\n");
   for (int i = 1; i < add.children_len; i++) {
-    asm_load_operand_to_reg(add.children[i], "eax");
+    cg_asm_for_math_mul(add.children[i]);
     if (add.children[i].prev_token == TOKEN_HYPHEN) {
-      printf("\tsubl %%eax, %%edx\n");      
+      printf("\tsubl %%edx, %%ecx\n");      
     } else {
-      printf("\taddl %%eax, %%edx\n");      
+      printf("\taddl %%edx, %%ecx\n");      
+    }
+  }
+}
+
+
+static void cg_asm_for_math_mul(struct ast_node mul)
+{
+  asm_load_operand_to_reg(mul.children[0], "edx");
+  for (int i = 1; i < mul.children_len; i++) {
+    if (mul.children[i].prev_token == TOKEN_SLASH) {
+      asm_load_operand_to_reg(mul.children[i], "ebx");
+      printf("\tmovl %%edx, %%eax\n");
+      printf("\tcltd\n");
+      printf("\tidivl %%ebx\n");
+      printf("\tmovl %%eax, %%edx\n");
+    } else {
+      asm_load_operand_to_reg(mul.children[i], "eax");
+      printf("\timull %%eax, %%edx\n");
+      
     }
   }
 }
@@ -196,7 +204,7 @@ static void asm_load_operand_to_reg(struct ast_node op, char* reg)
 
     case AST_SYMBOL:
       int stack_offset = op.sym_ref->stack_offset;
-      printf("\tmovl  %d(%%rbp), %%%s\n", stack_offset, reg);
+      printf("\tmovl  %d(%%rbp), %%%s \t\t# LOAD VAR \"%s\"\n", stack_offset, reg, op.sym_ref->name);
       break;
     default:
       fprintf(stderr, "error: UNREACHABLE: EXPECTED OPERAND: found %d\n", op.type);

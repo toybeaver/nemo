@@ -4,13 +4,7 @@ func main()
 	var y: int32; 
 
 	x = 5;
-	y = x + 10 + 12;
-	exit y + 3 - 10 - 25 + 7;
+	y = x + 3 - 2 * 2 + 7 / 2;
+	exit y;
 }
  
-func test()
-{
-	var x: int32;
-	var y: int32;
-	var z: int32;
-}

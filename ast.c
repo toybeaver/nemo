@@ -18,7 +18,8 @@
   ASSIGN   := IDENT '=' EXPR
 
   EXPR := MATH_ADD
-  MATH_ADD := OPERAND '+' MATH_ADD | OPERAND
+  MATH_ADD := MATH_MUL '+' MATH_ADD | MATH_MUL '-' MATH_ADD | MATH_MUL
+  MATH_MUL := OPERAND '*' MATH_MUL | OPERAND '/' MATH_MUL | OPERAND
 
   OPERAND := LITERAL | IDENT
 
@@ -48,6 +49,7 @@ static void parse_exit(const char *src, struct lex_token **_cur, struct ast_node
 static void parse_assign(const char *src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_expr(const char* src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_math_add(const char* src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_math_mul(const char* src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_operand(const char *src, struct lex_token **_cur, struct ast_node *parent);
 
 
@@ -351,20 +353,41 @@ static void parse_math_add(const char* src, struct lex_token **_cur, struct ast_
   struct lex_token* cur = *_cur;
   struct ast_node* add = define_node(AST_MATH_ADD, MAX_EXPR_SIZE, false, parent);
   
-  parse_operand(src, &cur, add);
+  parse_math_mul(src, &cur, add);
 
   while (cur->type == TOKEN_SUM || cur->type == TOKEN_HYPHEN) {
     if (cur->type == TOKEN_SUM) {
       consume_single_token(src, &cur, TOKEN_SUM, '+'); 
-      parse_operand(src, &cur, add);
+      parse_math_mul(src, &cur, add);
     }
     else {
       consume_single_token(src, &cur, TOKEN_HYPHEN, '-'); 
-      parse_operand(src, &cur, add);
+      parse_math_mul(src, &cur, add);
       add->children[add->children_len-1].prev_token = TOKEN_HYPHEN;
     }
   }
 
+  *_cur = cur;
+}
+
+
+static void parse_math_mul(const char* src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+  struct ast_node* mul = define_node(AST_MATH_MUL, MAX_EXPR_SIZE, false, parent);
+  
+  parse_operand(src, &cur, mul);
+  while (cur->type == TOKEN_STAR || cur->type == TOKEN_SLASH) {
+    if (cur->type == TOKEN_STAR) {
+      consume_single_token(src, &cur, TOKEN_STAR, '*'); 
+      parse_operand(src, &cur, mul);
+    }
+    else {
+      consume_single_token(src, &cur, TOKEN_SLASH, '/'); 
+      parse_operand(src, &cur, mul);
+      mul->children[mul->children_len-1].prev_token = TOKEN_SLASH;
+    }
+  }
   *_cur = cur;
 }
 
