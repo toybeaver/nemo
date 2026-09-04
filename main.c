@@ -16,5 +16,6 @@ int main()
   gen_asm_to_stdout(ast);
 
   free(src);
+  deinit_globals();
   return 0;
 }

@@ -20,6 +20,7 @@ void init_globals()
 void deinit_globals()
 {
   hm_free(g_keywords);
+  hm_free(g_datatypes);
 }
 
 
