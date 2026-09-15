@@ -17,15 +17,20 @@
   EXIT     := 'exit' EXPR
   ASSIGN   := IDENT '=' EXPR
 
-  EXPR := MATH_ADD
+  EXPR      := EXPR_MATH
+  EXPR_MATH := MATH_ADD
+  EXPR_BOOL := BOOL_OPERAND
+
   MATH_ADD := MATH_MUL '+' MATH_ADD | MATH_MUL '-' MATH_ADD | MATH_MUL
   MATH_MUL := OPERAND '*' MATH_MUL | OPERAND '/' MATH_MUL | OPERAND
-
   OPERAND := LITERAL | IDENT
+
+  BOOL_OPERAND := BOOL_LITERAL | IDENT  
 
   TYPE  := 'int32'
 
-  LITERAL := [0-9]+
+  BOOL_LITERAL := 'true' | 'false'
+  LITERAL := [0-9]+ | BOOL_LITERAL
   IDENT := [aA-zZ_]+[aA-zZ0-9]*
 */
 
@@ -36,6 +41,7 @@ static struct symbol*   define_symbol(struct ast_node* target, SymbolType type, 
 static bool is_func(const char* src, struct lex_token* cur);
 static bool is_var(const char* src, struct lex_token* cur);
 static bool is_exit(const char* src, struct lex_token* cur);
+static bool is_bool_literal(const char* src, struct lex_token* cur);
 
 static void                         consume_single_token(const char* src, struct lex_token **_cur, TokenType type, char expected);
 static char*                        consume_ident(const char* src, struct lex_token **_cur, struct ast_node* parent, bool uniq);
@@ -47,10 +53,18 @@ static void parse_scope(const char *src, struct lex_token **_cur, struct ast_nod
 static void parse_var(const char *src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_exit(const char *src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_assign(const char *src, struct lex_token **_cur, struct ast_node *parent);
+
 static void parse_expr(const char* src, struct lex_token **_cur, struct ast_node *parent);
+
+static bool is_math_expr(const char* src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_expr_math(const char* src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_math_add(const char* src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_math_mul(const char* src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_operand(const char *src, struct lex_token **_cur, struct ast_node *parent);
+
+static bool is_bool_expr(const char* src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_expr_bool(const char* src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_bool_operand(const char *src, struct lex_token **_cur, struct ast_node *parent);
 
 
 #define MAX_NODES /* for now */ 128
@@ -123,6 +137,14 @@ static bool is_var(const char* src, struct lex_token* cur)
 static bool is_exit(const char* src, struct lex_token* cur)
 {
   return cur->type == TOKEN_IDENT && strncmp(&src[cur->pos], "exit", cur->len) == 0;  
+}
+
+
+static bool is_bool_literal(const char* src, struct lex_token* cur)
+{
+  return cur->type == TOKEN_LITERAL &&
+         (strncmp(&src[cur->pos], "true", cur->len) == 0 ||
+          strncmp(&src[cur->pos], "false", cur->len) == 0);
 }
 
 
@@ -340,10 +362,53 @@ static void parse_expr(const char* src, struct lex_token **_cur, struct ast_node
 
   struct ast_node* expr = define_node(AST_EXPR, 1, false, parent);
 
-  // TODO: handle bool expressions too
+  if      (is_math_expr(src, &cur, parent)) parse_expr_math(src, &cur, expr);
+  else if (is_bool_expr(src, &cur, parent)) parse_expr_bool(src, &cur, expr);
+
+  *_cur = cur;
+}
+
+
+static void parse_expr_math(const char* src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+
+  struct ast_node* expr = define_node(AST_EXPR_MATH, 1, false, parent);
+
   parse_math_add(src, &cur, expr);
 
   *_cur = cur;
+}
+
+
+// TODO: handle parenthesis
+static bool is_math_expr(const char* src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+
+  switch ((*_cur)->type) {
+  case TOKEN_LITERAL:
+      char* lit = get_tokens_content(src, cur);
+      for (char *c = lit; *c != '\0'; c++) {
+        if (*c < '0' || *c > '9') return false;
+      }
+      return true;
+
+  case TOKEN_IDENT:
+      char* var_name = get_tokens_content(src, cur);
+
+      struct symbol *sym = get_symbol(parent->sym_table, var_name);
+      if (sym == NULL) {
+        fprintf(stderr, "error: Undeclared variable \"%s\" at pos %d\n", var_name, cur->pos);
+        fprintf(stderr, "tip:   try first declaring it with \"var %s: <type>\"\n", var_name);
+        exit(1);
+      }
+
+      if (sym->data_type->type == DT_INT32) return true;
+  
+      break;
+  }
+  return false;
 }
 
 
@@ -399,14 +464,96 @@ static void parse_operand(const char *src, struct lex_token **_cur, struct ast_n
   struct ast_node* expr = NULL;
   switch (cur->type) {
     case TOKEN_LITERAL:
+      // TODO: validate if it's in fact a numeric literal
       char* lit = consume_literal(src, &cur, parent);
       expr = define_node(AST_LITERAL, 0, false, parent);
-      expr->literal = atoi(lit);
+      expr->literal._int32 = atoi(lit);
+      expr->literal_type = DT_INT32;
       break;
 
     case TOKEN_IDENT:
       char* var_name = consume_ident(src, &cur, parent, false); 
 
+      struct symbol *sym = get_symbol(parent->sym_table, var_name);
+      if (sym == NULL) {
+        fprintf(stderr, "error: Undeclared variable \"%s\" at pos %d\n", var_name, cur->pos);
+        fprintf(stderr, "tip:   try first declaring it with \"var %s: <type>\"\n", var_name);
+        exit(1);
+      }
+
+      expr = define_node(AST_SYMBOL, 0, false, parent);
+      expr->sym_ref = sym;
+      break;
+
+    default:
+      char* bad_token = consume_literal(src, &cur, parent);
+      fprintf(stderr, "error: [5]Unexpected token \"%s\" at pos %d\n", bad_token, cur->pos);
+      exit(1);      
+  }
+
+  *_cur = cur;  
+}
+
+
+static bool is_bool_expr(const char* src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+
+  switch (cur->type) {
+  case TOKEN_LITERAL:
+      return is_bool_literal(src, cur);
+
+  case TOKEN_IDENT:
+      char* var_name = get_tokens_content(src, cur);
+
+      struct symbol *sym = get_symbol(parent->sym_table, var_name);
+      if (sym == NULL) {
+        fprintf(stderr, "error: Undeclared variable \"%s\" at pos %d\n", var_name, cur->pos);
+        fprintf(stderr, "tip:   try first declaring it with \"var %s: <type>\"\n", var_name);
+        exit(1);
+      }
+
+      if (sym->data_type->type == DT_BOOL) return true;
+  
+      break;
+  }
+  return false;  
+}
+
+
+static void parse_expr_bool(const char* src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+
+  struct ast_node* expr = define_node(AST_EXPR_BOOL, 1, false, parent);
+
+  parse_bool_operand(src, &cur, expr);  
+
+  *_cur = cur;  
+}
+
+
+static void parse_bool_operand(const char *src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+    
+  struct ast_node* expr = NULL;
+  switch (cur->type) {
+    case TOKEN_LITERAL:
+      if (!is_bool_literal(src, cur)) {
+        char* bad_token = consume_literal(src, &cur, parent);
+        fprintf(stderr, "error: Unexpected non-bool literal \"%s\" in boolean expression at pos %d\n", bad_token, cur->pos);
+        exit(1); 
+      }
+      
+      char* lit = consume_literal(src, &cur, parent);
+      expr = define_node(AST_LITERAL, 0, false, parent);
+      expr->literal._bool = strncmp(lit, "true", 4) == 0;
+      expr->literal_type = DT_BOOL;
+      break;
+
+    case TOKEN_IDENT:
+      char* var_name = consume_ident(src, &cur, parent, false); 
       struct symbol *sym = get_symbol(parent->sym_table, var_name);
       if (sym == NULL) {
         fprintf(stderr, "error: Undeclared variable \"%s\" at pos %d\n", var_name, cur->pos);

@@ -19,8 +19,12 @@ static void cg_asm_for_var_decl(struct ast_node func, int *stack_offset);
 static void cg_asm_for_assignment(struct ast_node assign);
 static void cg_asm_for_exit(struct ast_node exit);
 static void cg_asm_for_expr(struct ast_node expr);
+
+static void cg_asm_for_expr_math(struct ast_node expr);
 static void cg_asm_for_math_add(struct ast_node add);
 static void cg_asm_for_math_mul(struct ast_node mul);
+
+static void cg_asm_for_expr_bool(struct ast_node expr);
 
 static void asm_load_operand_to_reg(struct ast_node op, char* reg);
 
@@ -136,7 +140,12 @@ static void cg_asm_for_assignment(struct ast_node assign)
 
   struct ast_node rhs = assign.children[1];
   cg_asm_for_expr(rhs);
-  printf("\tmovl  %%ecx, %d(%%rbp) \t\t# VAR EXP ASSIGN \"%s\"\n\n", lhs_stack_offset, lhs.sym_ref->name);
+
+  if (rhs.children[0].type == AST_EXPR_BOOL) {
+    printf("\tmovb  %%cl, %d(%%rbp) \t\t# VAR EXP ASSIGN \"%s\"\n\n", lhs_stack_offset, lhs.sym_ref->name);    
+  } else {
+    printf("\tmovl  %%ecx, %d(%%rbp) \t\t# VAR EXP ASSIGN \"%s\"\n\n", lhs_stack_offset, lhs.sym_ref->name);
+  }
 }
 
 
@@ -156,8 +165,18 @@ static void cg_asm_for_expr(struct ast_node expr)
   assert(expr.type == AST_EXPR);
 
   struct ast_node exp = expr.children[0];
+  if      (exp.type == AST_EXPR_MATH) cg_asm_for_expr_math(exp);     
+  else if (exp.type == AST_EXPR_BOOL) cg_asm_for_expr_bool(exp);
+}
+
+
+static void cg_asm_for_expr_math(struct ast_node expr)
+{
+  assert(expr.type == AST_EXPR_MATH);
+
+  struct ast_node exp = expr.children[0];
   if (exp.type == AST_MATH_ADD) cg_asm_for_math_add(exp);     
-  else                          asm_load_operand_to_reg(exp, "eax");
+  else                          asm_load_operand_to_reg(exp, "ecx");
 }
 
 
@@ -195,16 +214,38 @@ static void cg_asm_for_math_mul(struct ast_node mul)
 }
 
 
+static void cg_asm_for_expr_bool(struct ast_node expr)
+{
+  assert(expr.type == AST_EXPR_BOOL);
+
+  struct ast_node exp = expr.children[0];
+  printf("\txor %%ecx, %%ecx\n");
+  asm_load_operand_to_reg(exp, "cl");
+}
+
+
 static void asm_load_operand_to_reg(struct ast_node op, char* reg)
 {
   switch (op.type) {
     case AST_LITERAL:
-      printf("\tmovl  $%d, %%%s\n", op.literal, reg);
+      if (op.literal_type == DT_BOOL) {
+        printf("\tmovb $%s, %%%s\n", op.literal._bool == true ? "0xFF" : "0x00", reg);
+      } else {
+        printf("\tmovl  $%d, %%%s\n", op.literal, reg);
+      }
       break;
 
     case AST_SYMBOL:
       int stack_offset = op.sym_ref->stack_offset;
-      printf("\tmovl  %d(%%rbp), %%%s \t\t# LOAD VAR \"%s\"\n", stack_offset, reg, op.sym_ref->name);
+      switch (op.sym_ref->data_type->type) {
+      case DT_BOOL:
+        printf("\tmovb  %d(%%rbp), %%%s \t\t# LOAD VAR \"%s\"\n", stack_offset, reg, op.sym_ref->name);
+        break;
+      case DT_INT32:
+        printf("\tmovl  %d(%%rbp), %%%s \t\t# LOAD VAR \"%s\"\n", stack_offset, reg, op.sym_ref->name);
+        break;
+      }
+
       break;
     default:
       fprintf(stderr, "error: UNREACHABLE: EXPECTED OPERAND: found %d\n", op.type);

@@ -2,9 +2,11 @@ PROJ   = nemo
 CC     = gcc
 CFLAGS = -pedantic -Werror
 
-.PHONY: all, clean
+.PHONY: all, clean, asm
 all: $(PROJ)
 	./nemo > out.s && gcc -c out.s && ld out.o
+asm: out.s
+	gcc -c out.s && ld out.o && ./a.out
 
 clean:
 	rm -Rf *.o

@@ -3,8 +3,15 @@ func main()
 	var x: int32;
 	var y: int32; 
 
+	var w: bool;
+	var z: bool;
+
 	x = 5;
 	y = x + 3 - 2 * 2 + 7 / 2;
+
+	w = false;
+	z = w;
+		
 	exit y;
 }
  

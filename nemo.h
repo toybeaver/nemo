@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 
  
 // ============================
@@ -52,9 +53,14 @@ typedef int SymbolType;
 #define SYM_FUNC 0
 #define SYM_VAR 1
 
+typedef int DataType;
+#define DT_INT32 0
+#define DT_BOOL  1
+
 struct data_type_definition {
   size_t size;
   size_t alignment;
+  DataType type;
 };
 
 struct symbol {
@@ -87,9 +93,11 @@ typedef int ASTNodeType;
 #define AST_EXIT        6
 #define AST_NUMBER      7
 #define AST_SYMBOL      8
-#define AST_MATH_ADD    9
-#define AST_EXPR       10
-#define AST_MATH_MUL   11
+#define AST_EXPR        9
+#define AST_EXPR_MATH  10
+#define AST_EXPR_BOOL  11
+#define AST_MATH_ADD   12
+#define AST_MATH_MUL   13
 
 struct ast_node {
   ASTNodeType      type;
@@ -99,7 +107,11 @@ struct ast_node {
   struct sym_table* sym_table;
   struct symbol*    sym_ref;
 
-  int literal;
+  union {
+    int32_t _int32;
+    bool    _bool;
+  } literal;
+  DataType literal_type;
 
   TokenType prev_token;
 };

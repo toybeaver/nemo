@@ -44,6 +44,11 @@ static void init_kws()
   hm_put(g_keywords, "exit",  "");
   hm_put(g_keywords, "func",  "");
   hm_put(g_keywords, "var",   "");
+
+  hm_put(g_keywords, "true",   "");
+  hm_put(g_keywords, "false",   "");
+
+  hm_put(g_keywords, "bool", "");
   hm_put(g_keywords, "int32", "");
 }
 
@@ -54,6 +59,10 @@ static void init_datatypes()
   hm_init(g_datatypes);
 
   struct data_type_definition *int32 = calloc(1, sizeof(struct data_type_definition));
-  int32->size = 4; int32->alignment = 4;
+  int32->size = 4; int32->alignment = 4; int32->type = DT_INT32; 
   hm_put(g_datatypes, "int32", int32);
+
+  struct data_type_definition *boolean = calloc(1, sizeof(struct data_type_definition));
+  boolean->size = 1; boolean->alignment = 1; boolean->type = DT_BOOL; 
+  hm_put(g_datatypes, "bool", boolean);
 }
