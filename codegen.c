@@ -14,11 +14,13 @@
 #define EXIT_ADDR "__EXIT__"
 
 static void cg_start();
-static bool cg_asm_for_func(struct ast_node func);
+static bool cg_asm_for_func(struct ast_node func, int *label_count);
+static void cg_asm_for_scope(struct ast_node scope, int *stack_offset, int *label_count);
 static void cg_asm_for_var_decl(struct ast_node func, int *stack_offset);
 static void cg_asm_for_assignment(struct ast_node assign);
 static void cg_asm_for_exit(struct ast_node exit);
 static void cg_asm_for_expr(struct ast_node expr);
+static void cg_asm_for_if(struct ast_node if_exp, int *stack_offset, int *label_count);
 
 static void cg_asm_for_expr_math(struct ast_node expr);
 static void cg_asm_for_math_add(struct ast_node add);
@@ -33,11 +35,12 @@ void gen_asm_to_stdout(struct ast_node ast)
   cg_start();
 
   bool main_found = false;
+  int label_count = 0;
 
   for (int i = 0; i < ast.children_len; i++) {
     switch(ast.children[i].type) {
       case AST_FUNCTION:
-        bool is_main = cg_asm_for_func(ast.children[i]);
+        bool is_main = cg_asm_for_func(ast.children[i], &label_count);
         if (is_main && main_found) {
           fprintf(stderr, "error: There could be only one main but two or more found\n");
           exit(1);
@@ -77,7 +80,8 @@ static void cg_start()
 }
 
 
-static bool cg_asm_for_func(struct ast_node func) {
+static bool cg_asm_for_func(struct ast_node func, int *label_count)
+{
   struct symbol* sym = func.sym_ref;
 
   printf("%s:\n", sym->name);
@@ -86,14 +90,30 @@ static bool cg_asm_for_func(struct ast_node func) {
   
   struct ast_node scope = func.children[0];
   int stack_offset = 0;
+  cg_asm_for_scope(scope, &stack_offset, label_count);
+
+  printf("\tpop  %%rbp\n");
+  if (sym->is_main_func) {
+    // always return 0 for now
+    printf("\txor  %%rax, %%rax\n");
+  }
+  printf("\tret\n");
+  return sym->is_main_func;
+}
+
+static void cg_asm_for_scope(struct ast_node scope, int *stack_offset, int *label_count)
+{
   for (int i = 0; i < scope.children_len; i++) {
     struct ast_node cur = scope.children[i];
     switch (cur.type) {
       case AST_VAR_DECL:
-        cg_asm_for_var_decl(cur, &stack_offset);
+        cg_asm_for_var_decl(cur, stack_offset);
         break;
       case AST_ASSIGNMENT:
         cg_asm_for_assignment(cur);
+        break;
+      case AST_IF:
+        cg_asm_for_if(cur, stack_offset, label_count);
         break;
       case AST_EXIT:
         cg_asm_for_exit(cur);
@@ -103,14 +123,6 @@ static bool cg_asm_for_func(struct ast_node func) {
         exit(1);
     }
   }
-
-  printf("\tpop  %%rbp\n");
-  if (sym->is_main_func) {
-    // always return 0 for now
-    printf("\txor  %%rax, %%rax\n");
-  }
-  printf("\tret\n");
-  return sym->is_main_func;
 }
 
 
@@ -251,4 +263,21 @@ static void asm_load_operand_to_reg(struct ast_node op, char* reg)
       fprintf(stderr, "error: UNREACHABLE: EXPECTED OPERAND: found %d\n", op.type);
       exit(1);
   }  
+}
+
+
+static void cg_asm_for_if(struct ast_node if_exp, int *stack_offset, int *label_count)
+{
+  assert(if_exp.type == AST_IF);
+  *label_count += 1;
+
+  struct ast_node condition = if_exp.children[0];  
+  cg_asm_for_expr_bool(condition);
+
+  printf("\tcmpb $0x00, %%cl \t\t # IF CONDITION\n");
+  printf("\tjz LAB%d\n", *label_count);
+
+  struct ast_node body = if_exp.children[1]; 
+  cg_asm_for_scope(body, stack_offset, label_count);
+  printf("LAB%d:\n", *label_count);
 }

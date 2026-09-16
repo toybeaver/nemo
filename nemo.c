@@ -44,6 +44,7 @@ static void init_kws()
   hm_put(g_keywords, "exit",  "");
   hm_put(g_keywords, "func",  "");
   hm_put(g_keywords, "var",   "");
+  hm_put(g_keywords, "if",    "");
 
   hm_put(g_keywords, "true",   "");
   hm_put(g_keywords, "false",   "");

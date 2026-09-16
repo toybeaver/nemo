@@ -108,11 +108,13 @@ static bool try_parse_ident(const char* src, size_t cur, struct lex_token *tok)
   while (isalnum(src[cur]) || src[cur] == '_') cur += 1;
 
   tok->type = TOKEN_IDENT;
-  if (strncmp("true", &src[init], 4) == 0 || strncmp("false", &src[init], 4) == 0) {
-    tok->type = TOKEN_LITERAL;
-  }
 
-  
+  if (strncmp("if", &src[init], cur-init) == 0)
+    tok->type = TOKEN_IF;  
+
+  if (strncmp("true", &src[init], cur-init) == 0 || strncmp("false", &src[init], cur-init) == 0) 
+    tok->type = TOKEN_LITERAL;
+
   tok->pos = init;
   tok->len = cur - init;
   return true;

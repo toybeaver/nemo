@@ -35,6 +35,7 @@ typedef int TokenType;
 #define TOKEN_HYPHEN   12
 #define TOKEN_STAR     13
 #define TOKEN_SLASH    14
+#define TOKEN_IF       15
 
 struct lex_token {
   TokenType type;  
@@ -98,6 +99,7 @@ typedef int ASTNodeType;
 #define AST_EXPR_BOOL  11
 #define AST_MATH_ADD   12
 #define AST_MATH_MUL   13
+#define AST_IF         14
 
 struct ast_node {
   ASTNodeType      type;

@@ -40,10 +40,12 @@ static struct symbol*   define_symbol(struct ast_node* target, SymbolType type, 
 
 static bool is_func(const char* src, struct lex_token* cur);
 static bool is_var(const char* src, struct lex_token* cur);
+static bool is_if(const char* src, struct lex_token* cur);
 static bool is_exit(const char* src, struct lex_token* cur);
 static bool is_bool_literal(const char* src, struct lex_token* cur);
 
 static void                         consume_single_token(const char* src, struct lex_token **_cur, TokenType type, char expected);
+static void                         consume_semi(const char* src, struct lex_token **_cur);
 static char*                        consume_ident(const char* src, struct lex_token **_cur, struct ast_node* parent, bool uniq);
 static char*                        consume_literal(const char* src, struct lex_token **_cur, struct ast_node* parent);
 static struct data_type_definition* consume_type(const char* src, struct lex_token **_cur, struct ast_node* parent); 
@@ -53,6 +55,7 @@ static void parse_scope(const char *src, struct lex_token **_cur, struct ast_nod
 static void parse_var(const char *src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_exit(const char *src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_assign(const char *src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_if(const char *src, struct lex_token **_cur, struct ast_node *parent);
 
 static void parse_expr(const char* src, struct lex_token **_cur, struct ast_node *parent);
 
@@ -134,6 +137,12 @@ static bool is_var(const char* src, struct lex_token* cur)
 }
 
 
+static bool is_if(const char* src, struct lex_token* cur)
+{
+  return cur->type == TOKEN_IF && strncmp(&src[cur->pos], "if", cur->len) == 0;
+}
+
+
 static bool is_exit(const char* src, struct lex_token* cur)
 {
   return cur->type == TOKEN_IDENT && strncmp(&src[cur->pos], "exit", cur->len) == 0;  
@@ -157,6 +166,12 @@ static void consume_single_token(const char* src, struct lex_token **_cur, Token
     exit(1);
   }
   *_cur = cur+1;
+}
+
+
+static void consume_semi(const char* src, struct lex_token **_cur)
+{
+  consume_single_token(src, _cur, TOKEN_SEMICOL, ';');
 }
 
 
@@ -258,10 +273,10 @@ static void parse_scope(const char* src, struct lex_token** _cur, struct ast_nod
   while(true) {
     bool should_quit = false;
 
-    if      (is_var(src, cur))         parse_var(src, &cur, scope); 
-    else if (is_exit(src, cur))        parse_exit(src, &cur, scope); 
-    else if (cur->type == TOKEN_IDENT) parse_assign(src, &cur, scope);
-    consume_single_token(src, &cur, TOKEN_SEMICOL, ';');
+    if      (is_var(src, cur))         { parse_var(src, &cur, scope); consume_semi(src, &cur); }
+    else if (is_exit(src, cur))        { parse_exit(src, &cur, scope); consume_semi(src, &cur); }
+    else if (is_if(src, cur))            parse_if(src, &cur, scope);
+    else if (cur->type == TOKEN_IDENT) { parse_assign(src, &cur, scope); consume_semi(src, &cur); }
 
     switch (cur->type) {
       case TOKEN_EOF: 
@@ -351,6 +366,20 @@ static void parse_assign(const char* src, struct lex_token** _cur, struct ast_no
       exit(1);      
     }
   }
+
+  *_cur = cur;
+}
+
+
+static void parse_if(const char* src, struct lex_token** _cur, struct ast_node* parent)
+{
+  struct lex_token* cur = *_cur;
+
+  cur += 1;
+
+  struct ast_node* if_exp = define_node(AST_IF, 2, false, parent);
+  parse_expr_bool(src, &cur, if_exp);
+  parse_scope(src, &cur, if_exp);
 
   *_cur = cur;
 }

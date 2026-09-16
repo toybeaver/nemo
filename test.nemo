@@ -11,7 +11,18 @@ func main()
 
 	w = false;
 	z = w;
-		
-	exit y;
+
+	if z {
+		exit 1;
+	}
+	if false {
+		exit 2;
+	}
+	if false{
+		exit 42;
+	}
+	if false {
+		exit 69;
+	}
 }
  
