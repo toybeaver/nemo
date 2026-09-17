@@ -9,20 +9,22 @@ func main()
 	x = 5;
 	y = x + 3 - 2 * 2 + 7 / 2;
 
-	w = false;
+	w = true;
 	z = w;
 
 	if z {
-		exit 1;
+		if false {
+			if true {
+				exit 42;
+			}
+			if false {
+				exit 69;
+			}
+			exit 40;
+		}
 	}
-	if false {
-		exit 2;
-	}
-	if false{
-		exit 42;
-	}
-	if false {
-		exit 69;
-	}
+	z = false;
+
+	if z { exit 10; }
 }
  

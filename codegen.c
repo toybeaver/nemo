@@ -270,14 +270,15 @@ static void cg_asm_for_if(struct ast_node if_exp, int *stack_offset, int *label_
 {
   assert(if_exp.type == AST_IF);
   *label_count += 1;
+  int lab_id = *label_count;
 
   struct ast_node condition = if_exp.children[0];  
   cg_asm_for_expr_bool(condition);
 
   printf("\tcmpb $0x00, %%cl \t\t # IF CONDITION\n");
-  printf("\tjz LAB%d\n", *label_count);
+  printf("\tjz LAB%d\n", lab_id);
 
   struct ast_node body = if_exp.children[1]; 
   cg_asm_for_scope(body, stack_offset, label_count);
-  printf("LAB%d:\n", *label_count);
+  printf("LAB%d:\n", lab_id);
 }
