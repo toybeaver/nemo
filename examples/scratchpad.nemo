@@ -17,7 +17,7 @@ func main()
 	z = w;
 
 	if z {
-		if true {
+		if false {
 			if false {
 				exit 42;
 			}
@@ -27,7 +27,7 @@ func main()
 			exit 40;
 		}
 	}
-	z = false;
+	# z = false;
 
 	if z { exit 10; }
 }

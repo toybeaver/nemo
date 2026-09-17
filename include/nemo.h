@@ -1,6 +1,7 @@
-#ifndef SYMP_H
-#define SYMP_H
+#ifndef NEMO_H
+#define NEMO_H
 
+#include <stdio.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -126,7 +127,7 @@ struct ast_node parse_ast(const char* src, struct lex_token* tokens);
 // ============================
 // later I'll probably add a middle layer for SSA before codegen but for
 // now this is easier ig
-void gen_asm_to_stdout(struct ast_node ast);
+void gen_asm_to_file(FILE *output, struct ast_node ast);
 
 
 // ============================
