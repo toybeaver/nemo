@@ -6,6 +6,7 @@
 #include <string.h>
 
 
+static void   skip_ws_comments(const char* src, size_t *cur);
 static struct lex_token next_token(const char* src, int initial_pos);
 
 static bool try_parse_ident(const char* src, size_t cur, struct lex_token *tok);
@@ -60,12 +61,46 @@ char* get_tokens_content(const char* src, struct lex_token* tok)
 }
 
 
+static void skip_ws_comments(const char* src, size_t *cur)
+{
+  while (true) {
+    while (isspace(src[*cur]) && src[*cur] != '\0') *cur += 1;
+
+    if (src[*cur] == '#') {
+      *cur += 1;
+
+      if (src[*cur] == '#') {
+        *cur += 1;
+        while (true) {
+          if (src[*cur] == '\0') {
+            fprintf(stderr, "error: Open multilined comment never closed before EOF\n");
+            exit(1);
+          }
+          if (src[*cur] == '#' && src[*cur+1] == '#') {
+            *cur += 2;
+            break;
+          }
+          *cur += 1;
+        }
+      }
+      else {
+        while (src[*cur] != '\n' && src[*cur] != '\0') {
+          *cur += 1; 
+        }
+      }
+    }
+
+    if (!isspace(src[*cur]) && src[*cur] != '#') break;
+  }
+}
+
+
 static struct lex_token next_token(const char* src, int initial_pos)
 {
   struct lex_token tok = { .len = 1 };
   size_t cur = initial_pos;
 
-  while (isspace(src[cur]) && src[cur] != '\0') cur++; 
+  skip_ws_comments(src, &cur);
 
   if (src[cur] == '\0' || src[cur] == EOF) {
     tok.type = TOKEN_EOF;

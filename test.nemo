@@ -1,3 +1,7 @@
+###================================================
+this is a multiline comment
+###================================================
+
 func main()
 {
 	var x: int32;
@@ -13,11 +17,11 @@ func main()
 	z = w;
 
 	if z {
-		if false {
-			if true {
+		if true {
+			if false {
 				exit 42;
 			}
-			if false {
+			if true {
 				exit 69;
 			}
 			exit 40;
@@ -27,4 +31,3 @@ func main()
 
 	if z { exit 10; }
 }
- 
