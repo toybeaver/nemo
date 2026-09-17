@@ -4,7 +4,7 @@
 // control-flow logic, and basic interfacing with the OS is properly implemented in the
 // language.
 
-#include "nemo.h"
+#include <nemo.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
