@@ -31,4 +31,4 @@
 - [ ] Comments (Inline + Multiline)
 
 ### Quirks
-- [ ] Missing pure negative number support (I FORGOR)
+- [ ] Missing negative number support (I FORGOR)
