@@ -24,6 +24,7 @@
 - [x] Function declaration
 - [ ] Function calling
 - [x] Exit kw
+- [ ] Bool Expressions
 - [x] If stmts
 - [ ] Elif stmts
 - [ ] Else stmts
