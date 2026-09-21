@@ -29,17 +29,6 @@ struct lex_token* lex_scan(const char* src)
  
   if (t[i].type == TOKEN_ERR) {
     fprintf(stderr, "error: Unexpected token found: '%c'(ascii:%d) at pos %zu\n", src[t[i].pos], src[t[i].pos], t[i].pos);
-
-    char* context = malloc(11);
-    strncpy(context, &src[t[i].pos-5], 10);
-    context[10] = '\0';
-    for (int i = 0; i < 10; i++) if (context[i] == '\n' || context[i] == '\t') context[i] = ' ';
-    fprintf(stderr, "context: \"%s\"\n", context);
-    fprintf(stderr, "context:  ");
-    for (int i = 0; i < 5; i++) fprintf(stderr, " ");
-    fprintf(stderr, "^\n");
-    fflush(stderr);
-
     exit(1);
   }
 
@@ -64,7 +53,8 @@ char* get_tokens_content(const char* src, struct lex_token* tok)
 static void skip_ws_comments(const char* src, size_t *cur)
 {
   while (true) {
-    while (isspace(src[*cur]) && src[*cur] != '\0') *cur += 1;
+    while (isspace(src[*cur]) && src[*cur] != '\0') 
+      *cur += 1;
 
     if (src[*cur] == '#') {
       *cur += 1;
@@ -127,10 +117,16 @@ static struct lex_token next_token(const char* src, int initial_pos)
     case '-': tok.type = TOKEN_HYPHEN;   return tok;
     case '*': tok.type = TOKEN_STAR;     return tok;
     case '/': tok.type = TOKEN_SLASH;    return tok;
+    case '&': {
+      if (src[cur+1] == '&') {
+        tok.len = 2;
+        tok.type = TOKEN_AND;
+        return tok; 
+      } 
+    }
   }
 
   tok.type = TOKEN_ERR;
-  tok.pos = cur;
   return tok;
 }
 

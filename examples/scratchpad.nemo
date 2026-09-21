@@ -7,27 +7,28 @@ func main()
 	var x: int32;
 	var y: int32; 
 
-	var w: bool;
-	var z: bool;
+	var dumb_bool: bool;
+	var should_early_quit: bool;
 
 	x = 5;
 	y = x + 3 - 2 * 2 + 7 / 2;
 
-	w = true;
-	z = w;
+	dumb_bool = true;
+	should_early_quit = dumb_bool && true && true;
 
-	if z {
-		if false {
+	if should_early_quit {
+		if true {
 			if false {
 				exit 42;
 			}
-			if true {
+			if false {
 				exit 69;
 			}
 			exit 40;
 		}
+		exit 23;
 	}
 	# z = false;
 
-	if z { exit 10; }
+	if dumb_bool { exit 10; }
 }

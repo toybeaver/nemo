@@ -19,12 +19,13 @@
 
   EXPR      := EXPR_MATH
   EXPR_MATH := MATH_ADD
-  EXPR_BOOL := BOOL_OPERAND
+  EXPR_BOOL := BOOL_AND
 
   MATH_ADD := MATH_MUL '+' MATH_ADD | MATH_MUL '-' MATH_ADD | MATH_MUL
   MATH_MUL := OPERAND '*' MATH_MUL | OPERAND '/' MATH_MUL | OPERAND
   OPERAND := LITERAL | IDENT
 
+  BOOL_AND     := BOOL_OPERAND && BOOL_AND | BOOL_OPERAND
   BOOL_OPERAND := BOOL_LITERAL | IDENT  
 
   TYPE  := 'int32'
@@ -67,6 +68,7 @@ static void parse_operand(const char *src, struct lex_token **_cur, struct ast_n
 
 static bool is_bool_expr(const char* src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_expr_bool(const char* src, struct lex_token **_cur, struct ast_node *parent);
+static void parse_bool_and(const char *src, struct lex_token **_cur, struct ast_node *parent);
 static void parse_bool_operand(const char *src, struct lex_token **_cur, struct ast_node *parent);
 
 
@@ -556,9 +558,25 @@ static void parse_expr_bool(const char* src, struct lex_token **_cur, struct ast
 
   struct ast_node* expr = define_node(AST_EXPR_BOOL, 1, false, parent);
 
-  parse_bool_operand(src, &cur, expr);  
+  parse_bool_and(src, &cur, expr);  
 
   *_cur = cur;  
+}
+
+
+static void parse_bool_and(const char *src, struct lex_token **_cur, struct ast_node *parent)
+{
+  struct lex_token* cur = *_cur;
+  struct ast_node* and = define_node(AST_AND_BOOL, MAX_EXPR_SIZE, false, parent);
+  
+  parse_bool_operand(src, &cur, and);
+
+  while (cur->type == TOKEN_AND) {
+    consume_single_token(src, &cur, TOKEN_AND, '&'); 
+    parse_bool_operand(src, &cur, and);
+  }
+
+  *_cur = cur;
 }
 
 

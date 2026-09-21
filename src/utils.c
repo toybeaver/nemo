@@ -15,8 +15,9 @@ char* read_file(const char* file_path)
   long size = ftell(f);
   fseek(f, 0, SEEK_SET);
 
-  char* src = malloc(size);
+  char* src = malloc(size+1);
   fread(src, sizeof(char), size, f);
+  src[size] = '\0';
 
   fclose(f);
   return src;

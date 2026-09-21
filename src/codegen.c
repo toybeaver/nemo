@@ -13,20 +13,26 @@
 
 #define EXIT_ADDR "__EXIT__"
 
+
+int label_count = 0;
+
+
 static void cg_start(FILE* f);
 
-static bool cg_asm_for_func(FILE* f, struct ast_node func, int *label_count);
-static void cg_asm_for_scope(FILE* f, struct ast_node scope, int *stack_offset, int *label_count);
+static bool cg_asm_for_func(FILE* f, struct ast_node func);
+static void cg_asm_for_scope(FILE* f, struct ast_node scope, int *stack_offset);
 static void cg_asm_for_var_decl(FILE* f, struct ast_node func, int *stack_offset);
 static void cg_asm_for_assignment(FILE* f, struct ast_node assign);
 static void cg_asm_for_exit(FILE* f, struct ast_node exit);
 static void cg_asm_for_expr(FILE* f, struct ast_node expr);
-static void cg_asm_for_if(FILE* f, struct ast_node if_exp, int *stack_offset, int *label_count);
+static void cg_asm_for_if(FILE* f, struct ast_node if_exp, int *stack_offset);
 
 static void cg_asm_for_expr_math(FILE* f, struct ast_node expr);
 static void cg_asm_for_math_add(FILE* f, struct ast_node add);
 static void cg_asm_for_math_mul(FILE* f, struct ast_node mul);
+
 static void cg_asm_for_expr_bool(FILE* f, struct ast_node expr);
+static void cg_asm_for_bool_and(FILE* f, struct ast_node add);
 
 static void asm_load_operand_to_reg(FILE* f, struct ast_node op, char* reg);
 
@@ -35,12 +41,11 @@ void gen_asm_to_file(FILE *asm_output, struct ast_node ast)
   cg_start(asm_output);
 
   bool main_found = false;
-  int label_count = 0;
 
   for (int i = 0; i < ast.children_len; i++) {
     switch(ast.children[i].type) {
       case AST_FUNCTION:
-        bool is_main = cg_asm_for_func(asm_output, ast.children[i], &label_count);
+        bool is_main = cg_asm_for_func(asm_output, ast.children[i]);
         if (is_main && main_found) {
           fprintf(stderr, "error: There could be only one main but two or more found\n");
           exit(1);
@@ -80,7 +85,7 @@ static void cg_start(FILE* f)
 }
 
 
-static bool cg_asm_for_func(FILE* f, struct ast_node func, int *label_count)
+static bool cg_asm_for_func(FILE* f, struct ast_node func)
 {
   struct symbol* sym = func.sym_ref;
 
@@ -90,7 +95,7 @@ static bool cg_asm_for_func(FILE* f, struct ast_node func, int *label_count)
   
   struct ast_node scope = func.children[0];
   int stack_offset = 0;
-  cg_asm_for_scope(f, scope, &stack_offset, label_count);
+  cg_asm_for_scope(f, scope, &stack_offset);
 
   fprintf(f, "\tpop  %%rbp\n");
   if (sym->is_main_func) {
@@ -101,7 +106,7 @@ static bool cg_asm_for_func(FILE* f, struct ast_node func, int *label_count)
   return sym->is_main_func;
 }
 
-static void cg_asm_for_scope(FILE* f, struct ast_node scope, int *stack_offset, int *label_count)
+static void cg_asm_for_scope(FILE* f, struct ast_node scope, int *stack_offset)
 {
   for (int i = 0; i < scope.children_len; i++) {
     struct ast_node cur = scope.children[i];
@@ -113,7 +118,7 @@ static void cg_asm_for_scope(FILE* f, struct ast_node scope, int *stack_offset, 
         cg_asm_for_assignment(f, cur);
         break;
       case AST_IF:
-        cg_asm_for_if(f, cur, stack_offset, label_count);
+        cg_asm_for_if(f, cur, stack_offset);
         break;
       case AST_EXIT:
         cg_asm_for_exit(f, cur);
@@ -219,7 +224,6 @@ static void cg_asm_for_math_mul(FILE* f, struct ast_node mul)
     } else {
       asm_load_operand_to_reg(f, mul.children[i], "eax");
       fprintf(f, "\timull %%eax, %%edx\n");
-      
     }
   }
 }
@@ -231,7 +235,26 @@ static void cg_asm_for_expr_bool(FILE* f, struct ast_node expr)
 
   struct ast_node exp = expr.children[0];
   fprintf(f, "\txor %%ecx, %%ecx\n");
-  asm_load_operand_to_reg(f, exp, "cl");
+  cg_asm_for_bool_and(f, exp);
+
+  label_count += 1;
+  fprintf(f, "\tmovb $0xFF, %%cl\n");
+  fprintf(f, "\tjmp  LAB%d\n", label_count);
+  fprintf(f, "LAB%d:\n", label_count+1);
+  fprintf(f, "\tmovb $0x00, %%cl\n");
+  fprintf(f, "LAB%d:\n", label_count);
+  label_count += 1;
+}
+
+
+static void cg_asm_for_bool_and(FILE* f, struct ast_node and)
+{
+  int label_if_false = label_count + 2;
+  for (int i = 0; i < and.children_len; i++) {
+    asm_load_operand_to_reg(f, and.children[i], "bl");
+    fprintf(f, "\tcmpb  $0x00, %%bl\n");
+    fprintf(f, "\tjz    LAB%d\n", label_if_false);
+  }  
 }
 
 
@@ -265,11 +288,11 @@ static void asm_load_operand_to_reg(FILE* f, struct ast_node op, char* reg)
 }
 
 
-static void cg_asm_for_if(FILE* f, struct ast_node if_exp, int *stack_offset, int *label_count)
+static void cg_asm_for_if(FILE* f, struct ast_node if_exp, int *stack_offset)
 {
   assert(if_exp.type == AST_IF);
-  *label_count += 1;
-  int lab_id = *label_count;
+  label_count += 1;
+  int lab_id = label_count;
 
   struct ast_node condition = if_exp.children[0];  
   cg_asm_for_expr_bool(f, condition);
@@ -278,6 +301,6 @@ static void cg_asm_for_if(FILE* f, struct ast_node if_exp, int *stack_offset, in
   fprintf(f, "\tjz LAB%d\n", lab_id);
 
   struct ast_node body = if_exp.children[1]; 
-  cg_asm_for_scope(f, body, stack_offset, label_count);
+  cg_asm_for_scope(f, body, stack_offset);
   fprintf(f, "LAB%d:\n", lab_id);
 }
