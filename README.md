@@ -23,8 +23,10 @@
 - [x] Variable assignment
 - [x] Function declaration
 - [ ] Function calling
-- [x] Exit kw
-- [ ] Bool Expressions
+- [x] Exit kw -> this is temporary just for testing purposes, it will be moved to the std lib later on
+- [x] Bool AND Expressions
+- [x] Bool OR Expressions
+- [ ] ==, <=, >=, <, >
 - [x] If stmts
 - [ ] Elif stmts
 - [ ] Else stmts
@@ -33,3 +35,4 @@
 
 ### Quirks
 - [ ] Missing negative number support (I FORGOR)
+- [ ] Better compiler logs/error handling (there's not even line numbers in the reports??)
