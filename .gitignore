@@ -3,3 +3,9 @@ nemo
 *.out
 out.s
 sandbox
+
+CMakeFiles
+cmake_install.cmake
+CMakeCache.txt
+compile_commands.json
+Makefile
