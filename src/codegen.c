@@ -143,7 +143,7 @@ static void cg_asm_for_var_decl(FILE* f, struct ast_node var, int *stack_offset)
   *stack_offset -= dt->size;
   sym->stack_offset = *stack_offset;
 
-  fprintf(f, "\tadd  $%d, %%rbp \t\t# VAR DECL \"%s\"\n", *stack_offset, sym->name);
+  fprintf(f, "\tadd  $%d, %%rbp \t\t# VAR DECL \"%s\"\n", dt->size, sym->name);
   fprintf(f, "\tmovl $0,  %d(%%rbp)\n\n", *stack_offset);
 }
 
