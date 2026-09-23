@@ -36,3 +36,4 @@
 ### Quirks
 - [ ] Missing negative number support (I FORGOR)
 - [ ] Better compiler logs/error handling (there's not even line numbers in the reports??)
+- [ ] Real type enforcement

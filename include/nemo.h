@@ -94,7 +94,6 @@ typedef int ASTNodeType;
 #define AST_ASSIGNMENT  4
 #define AST_LITERAL     5
 #define AST_EXIT        6
-#define AST_NUMBER      7
 #define AST_SYMBOL      8
 #define AST_EXPR        9
 #define AST_EXPR_MATH  10

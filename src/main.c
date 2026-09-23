@@ -13,12 +13,13 @@ int main(int argc, char **argv)
   init_globals();
 
   char* src = get_file_from_args(argc, argv);
-    
+
   struct lex_token* toks = lex_scan(src);
-  struct ast_node   ast  = parse_ast(src, toks); 
+  struct ast_node   ast  = parse_ast(src, toks);
   free(toks);
 
-  compile_from_ast(ast); 
+  debug_ast(ast);
+  compile_from_ast(ast);
 
   free(src);
   deinit_globals();
@@ -44,7 +45,7 @@ static void compile_from_ast(struct ast_node ast)
     fprintf(stderr, "error: COULD NOT WRITE FILE, CHECK DISK\n");
     exit(1);
   }
-  gen_asm_to_file(asm_output, ast);  
+  gen_asm_to_file(asm_output, ast);
   fclose(asm_output);
 
   if(system("gcc -c out.s") != 0) {

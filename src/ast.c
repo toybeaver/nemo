@@ -1,4 +1,5 @@
 #include <nemo.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -35,6 +36,11 @@
   IDENT := [aA-zZ_]+[aA-zZ0-9]*
 */
 
+
+static char* dbg_ast_type_name(struct ast_node);
+static char* dbg_ast_type_props(struct ast_node);
+static char* dbg_ast_literal(struct ast_node);
+static void dbg_ast_internal(struct ast_node, int level);
 
 static struct ast_node* define_node(ASTNodeType type, size_t children_cap, bool with_symtable, struct ast_node* parent); // used for all nodes except root
 static struct symbol*   define_symbol(struct ast_node* target, SymbolType type, char* name, struct ast_node* parent);
@@ -98,7 +104,84 @@ struct ast_node parse_ast(const char* src, struct lex_token* tokens)
 
 void debug_ast(struct ast_node ast)
 {
+  dbg_ast_internal(ast, 0);
+}
 
+
+static char* dbg_ast_type_name(struct ast_node ast)
+{
+  switch (ast.type) {
+    case AST_ROOT:
+      return "AST_ROOT";
+    case AST_FUNCTION:
+      return "AST_FUNCTION";
+    case AST_SCOPE:
+      return "AST_SCOPE";
+    case AST_VAR_DECL:
+      return "AST_VAR_DECL";
+    case AST_ASSIGNMENT:
+      return "AST_ASSIGNMENT";
+    case AST_LITERAL:
+      return "AST_LITERAL";
+    case AST_EXIT:
+      return "AST_EXIT";
+    case AST_SYMBOL:
+      return "AST_SYMBOL";
+    case AST_EXPR:
+      return "AST_EXPR";
+    case AST_EXPR_MATH:
+      return "AST_EXPR_MATH";
+    case AST_EXPR_BOOL:
+      return "AST_EXPR_BOOL";
+    case AST_MATH_ADD:
+      return "AST_MATH_ADD";
+    case AST_MATH_MUL:
+      return "AST_MATH_MUL";
+    case AST_IF:
+      return "AST_IF";
+    case AST_AND_BOOL:
+      return "AST_AND_BOOL";
+    default: return "UNKNOWN";
+  }
+}
+
+
+static char* dbg_ast_type_props(struct ast_node ast)
+{
+  switch (ast.type) {
+    case AST_FUNCTION:
+    case AST_VAR_DECL:
+    case AST_SYMBOL:
+      return ast.sym_ref->name;
+    case AST_LITERAL:
+      return dbg_ast_literal(ast);
+    default: return "";
+  }
+}
+
+
+static char* dbg_ast_literal(struct ast_node ast)
+{
+  assert(ast.type == AST_LITERAL);
+
+  // TODO: DT_INT32
+  switch (ast.literal_type) {
+    case DT_BOOL:
+      if (ast.literal._bool)
+        return "true";
+      return "false";
+    default: return "";
+  }
+}
+
+
+static void dbg_ast_internal(struct ast_node ast, int level)
+{
+  for (int i = 0; i < level; i++) printf(" ");
+  printf("∟ %s (%s)\n", dbg_ast_type_name(ast), dbg_ast_type_props(ast));
+
+  for (int i = 0; i < ast.children_len; i++)
+    dbg_ast_internal(ast.children[i], level + 1);
 }
 
 

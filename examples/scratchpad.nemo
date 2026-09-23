@@ -4,8 +4,13 @@ this is a multiline comment
 
 func main()
 {
+    var x: int32;
+    var y: int32;
+    x = 2 + 3;
+    y = true;
+##
 	var x: int32;
-	var y: int32; 
+	var y: int32;
 
 	var dumb_bool: bool;
 	var should_early_quit: bool;
@@ -31,4 +36,5 @@ func main()
 	# z = false;
 
 	if dumb_bool { exit 10; }
+	##
 }
