@@ -73,7 +73,7 @@ static void cg_start(FILE* f)
   fprintf(f, "\t.global _start\n");
   fprintf(f, "\t.text\n");
   fprintf(f, "_start:\n");
-  fprintf(f, "\txor  %rbp, %rbp\n");
+  fprintf(f, "\txor  %%rbp, %%rbp\n");
   fprintf(f, "\tand  $0xfffffffffffffff0, %%rsp\n");
 
   fprintf(f, "\tcall main\n");
@@ -92,7 +92,7 @@ static bool cg_asm_for_func(FILE* f, struct ast_node func)
   fprintf(f, "%s:\n", sym->name);
   fprintf(f, "\tpush %%rbp \t\t# INIT STACK\n");
   fprintf(f, "\tmov  %%rsp, %%rbp\n\n");
-  
+
   struct ast_node scope = func.children[0];
   int stack_offset = 0;
   cg_asm_for_scope(f, scope, &stack_offset);
@@ -137,13 +137,13 @@ static void cg_asm_for_var_decl(FILE* f, struct ast_node var, int *stack_offset)
   assert(sym);
 
   struct data_type_definition *dt = sym->data_type;
-  assert(dt != NULL); 
+  assert(dt != NULL);
 
   // TODO: handle alignment
   *stack_offset -= dt->size;
   sym->stack_offset = *stack_offset;
 
-  fprintf(f, "\tadd  $%d, %%rbp \t\t# VAR DECL \"%s\"\n", dt->size, sym->name);
+  fprintf(f, "\tadd  $%zu, %%rbp \t\t# VAR DECL \"%s\"\n", dt->size, sym->name);
   fprintf(f, "\tmovl $0,  %d(%%rbp)\n\n", *stack_offset);
 }
 
@@ -159,7 +159,7 @@ static void cg_asm_for_assignment(FILE* f, struct ast_node assign)
   cg_asm_for_expr(f, rhs);
 
   if (rhs.children[0].type == AST_EXPR_BOOL) {
-    fprintf(f, "\tmovb  %%cl, %d(%%rbp) \t\t# VAR EXP ASSIGN \"%s\"\n\n", lhs_stack_offset, lhs.sym_ref->name);    
+    fprintf(f, "\tmovb  %%cl, %d(%%rbp) \t\t# VAR EXP ASSIGN \"%s\"\n\n", lhs_stack_offset, lhs.sym_ref->name);
   } else {
     fprintf(f, "\tmovl  %%ecx, %d(%%rbp) \t\t# VAR EXP ASSIGN \"%s\"\n\n", lhs_stack_offset, lhs.sym_ref->name);
   }
@@ -169,7 +169,7 @@ static void cg_asm_for_assignment(FILE* f, struct ast_node assign)
 static void cg_asm_for_exit(FILE* f, struct ast_node exit)
 {
   struct ast_node rhs = exit.children[0];
- 
+
   cg_asm_for_expr(f, rhs);
   fprintf(f, "\tmovl  %%ecx, %%eax \t\t# EXIT CALL \n");
 	fprintf(f, "\tjmp  " EXIT_ADDR "\n\n");
@@ -181,7 +181,7 @@ static void cg_asm_for_expr(FILE* f, struct ast_node expr)
   assert(expr.type == AST_EXPR);
 
   struct ast_node exp = expr.children[0];
-  if      (exp.type == AST_EXPR_MATH) cg_asm_for_expr_math(f, exp);     
+  if      (exp.type == AST_EXPR_MATH) cg_asm_for_expr_math(f, exp);
   else if (exp.type == AST_EXPR_BOOL) cg_asm_for_expr_bool(f, exp);
 }
 
@@ -191,7 +191,7 @@ static void cg_asm_for_expr_math(FILE* f, struct ast_node expr)
   assert(expr.type == AST_EXPR_MATH);
 
   struct ast_node exp = expr.children[0];
-  if (exp.type == AST_MATH_ADD) cg_asm_for_math_add(f, exp);     
+  if (exp.type == AST_MATH_ADD) cg_asm_for_math_add(f, exp);
   else                          asm_load_operand_to_reg(f, exp, "ecx");
 }
 
@@ -203,9 +203,9 @@ static void cg_asm_for_math_add(FILE* f, struct ast_node add)
   for (int i = 1; i < add.children_len; i++) {
     cg_asm_for_math_mul(f, add.children[i]);
     if (add.children[i].prev_token == TOKEN_HYPHEN) {
-      fprintf(f, "\tsubl %%edx, %%ecx\n");      
+      fprintf(f, "\tsubl %%edx, %%ecx\n");
     } else {
-      fprintf(f, "\taddl %%edx, %%ecx\n");      
+      fprintf(f, "\taddl %%edx, %%ecx\n");
     }
   }
 }
@@ -254,22 +254,22 @@ static void cg_asm_for_bool_and(FILE* f, struct ast_node and)
     asm_load_operand_to_reg(f, and.children[i], "bl");
     fprintf(f, "\tcmpb  $0x00, %%bl\n");
     fprintf(f, "\tjz    LAB%d\n", label_if_false);
-  }  
+  }
 }
 
 
 static void asm_load_operand_to_reg(FILE* f, struct ast_node op, char* reg)
 {
   switch (op.type) {
-    case AST_LITERAL:
+    case AST_LITERAL: {
       if (op.literal_type == DT_BOOL) {
         fprintf(f, "\tmovb $%s, %%%s\n", op.literal._bool == true ? "0xFF" : "0x00", reg);
       } else {
-        fprintf(f, "\tmovl  $%d, %%%s\n", op.literal, reg);
+        fprintf(f, "\tmovl  $%d, %%%s\n", op.literal._int32, reg);
       }
       break;
-
-    case AST_SYMBOL:
+    }
+    case AST_SYMBOL: {
       int stack_offset = op.sym_ref->stack_offset;
       switch (op.sym_ref->data_type->type) {
       case DT_BOOL:
@@ -279,12 +279,12 @@ static void asm_load_operand_to_reg(FILE* f, struct ast_node op, char* reg)
         fprintf(f, "\tmovl  %d(%%rbp), %%%s \t\t# LOAD VAR \"%s\"\n", stack_offset, reg, op.sym_ref->name);
         break;
       }
-
       break;
+    }
     default:
       fprintf(stderr, "error: UNREACHABLE: EXPECTED OPERAND: found %d\n", op.type);
       exit(1);
-  }  
+  }
 }
 
 
@@ -294,13 +294,13 @@ static void cg_asm_for_if(FILE* f, struct ast_node if_exp, int *stack_offset)
   label_count += 1;
   int lab_id = label_count;
 
-  struct ast_node condition = if_exp.children[0];  
+  struct ast_node condition = if_exp.children[0];
   cg_asm_for_expr_bool(f, condition);
 
   fprintf(f, "\tcmpb $0x00, %%cl \t\t # IF CONDITION\n");
   fprintf(f, "\tjz LAB%d\n", lab_id);
 
-  struct ast_node body = if_exp.children[1]; 
+  struct ast_node body = if_exp.children[1];
   cg_asm_for_scope(f, body, stack_offset);
   fprintf(f, "LAB%d:\n", lab_id);
 }

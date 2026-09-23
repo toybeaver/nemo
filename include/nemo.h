@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
- 
+
 // ============================
 //       GLOBALS
 // ============================
@@ -14,7 +14,7 @@ void init_globals();
 void deinit_globals();
 bool is_keyword(const char* w);
 
-struct data_type_definition* get_datatype_definition(const char* dt); 
+struct data_type_definition* get_datatype_definition(const char* dt);
 
 
 // ============================
@@ -40,7 +40,7 @@ typedef int TokenType;
 #define TOKEN_AND      16
 
 struct lex_token {
-  TokenType type;  
+  TokenType type;
   size_t    pos;
   int       len;
 };
@@ -82,7 +82,7 @@ struct sym_table {
 struct sym_table* init_sym_table(struct sym_table *parent);
 struct symbol*    get_symbol(struct sym_table *table, char *key);
 
- 
+
 // ============================
 //       AST
 // ============================
@@ -122,6 +122,7 @@ struct ast_node {
 };
 
 struct ast_node parse_ast(const char* src, struct lex_token* tokens);
+void debug_ast(struct ast_node);
 
 
 // ============================
@@ -147,7 +148,7 @@ struct hmap_entry {
 struct hmap {
   size_t len;
   size_t cap;
-  struct hmap_entry *entries; 
+  struct hmap_entry *entries;
 };
 
 void  hm_init(struct hmap *h);
